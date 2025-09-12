@@ -4,6 +4,7 @@ import { ConsumeMessage } from "amqplib";
 import { IWebSocketMessage, WebSocketMessageType } from "../models/ws_client.model";
 import { clients } from "../server";
 import { channel } from "../services/message_broker.service";
+import { MESSAGE_EXCHANGE } from "../constant";
 
 export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
     try {
@@ -12,7 +13,12 @@ export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IW
             client.verified = true;
             client.queue = "queue." + userId;
 
-            channel.assertQueue(client.queue)
+            await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
+            await channel.assertQueue(client.queue)
+
+            await channel.bindQueue(client.queue, MESSAGE_EXCHANGE, userId);
+
+            channel.prefetch(2);
 
             channel.consume(client.queue, (msg: ConsumeMessage | null) => {
                 const content = msg?.content;
@@ -24,7 +30,10 @@ export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IW
 
                     channel.ack(msg);
                 }
-            })
+            },
+                {
+                    consumerTag: client.userId
+                })
 
             ws.send(
                 JSON.stringify(
@@ -58,6 +67,12 @@ export const handleSendMessage = async (ws: WebSocket, userId: string, data: IWe
 
         if (to && msg) {
             // TODO: send message to queue
+            channel.publish(MESSAGE_EXCHANGE, to, Buffer.from(JSON.stringify(
+                {
+                    from: userId,
+                    message: msg
+                }
+            )))
         }
     } catch (error) {
         console.error("error in handling send_message: ", error);

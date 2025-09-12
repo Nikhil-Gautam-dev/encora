@@ -21,22 +21,37 @@ import { WebSocketServer } from "ws";
 
 // src/handler/ws_message.handler.ts
 import { WebSocket } from "ws";
+
+// src/constant.ts
+var MESSAGE_EXCHANGE = "live_bridge";
+
+// src/handler/ws_message.handler.ts
 var handleLoginMessage = async (ws, userId, data) => {
   try {
     const client = clients.get(userId);
     if (client) {
       client.verified = true;
       client.queue = "queue." + userId;
-      channel.assertQueue(client.queue);
-      channel.consume(client.queue, (msg) => {
-        const content = msg?.content;
-        if (content && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: "receive_message",
-            ...JSON.parse(content.toString())
-          }));
+      await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
+      await channel.assertQueue(client.queue);
+      await channel.bindQueue(client.queue, MESSAGE_EXCHANGE, userId);
+      channel.prefetch(2);
+      channel.consume(
+        client.queue,
+        (msg) => {
+          const content = msg?.content;
+          if (content && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: "receive_message",
+              ...JSON.parse(content.toString())
+            }));
+            channel.ack(msg);
+          }
+        },
+        {
+          consumerTag: client.userId
         }
-      });
+      );
       ws.send(
         JSON.stringify(
           {
@@ -66,6 +81,12 @@ var handleSendMessage = async (ws, userId, data) => {
     const to = data.to;
     const msg = data.message;
     if (to && msg) {
+      channel.publish(MESSAGE_EXCHANGE, to, Buffer.from(JSON.stringify(
+        {
+          from: userId,
+          message: msg
+        }
+      )));
     }
   } catch (error) {
     console.error("error in handling send_message: ", error);
@@ -97,6 +118,9 @@ var createWebSocketServer = (port = 8080) => {
         console.error("error in handeling message: ", error);
       }
     });
+    ws.on("close", async () => {
+      handleCloseConnectionRequest(ws, userId);
+    });
   });
 };
 var handleConnectionRequest = (ws, req) => {
@@ -114,6 +138,17 @@ var handleConnectionRequest = (ws, req) => {
     clients.set(userId, { ws, userId, verified: false, queue: null });
   }
   return { userId };
+};
+var handleCloseConnectionRequest = (ws, userId) => {
+  try {
+    const client = clients.get(userId);
+    if (client) {
+      channel.cancel(client.userId);
+      clients.delete(userId);
+    }
+  } catch (error) {
+    console.error("error in removing closing connectiom: ", error);
+  }
 };
 var handleWebSocketMessage = async (ws, userId, data) => {
   if (data.type !== "login" && !clients.get(userId)?.verified) {

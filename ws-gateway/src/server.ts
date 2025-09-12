@@ -2,6 +2,7 @@ import { IncomingMessage } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { IClientInfo, IWebSocketMessage } from "./models/ws_client.model";
 import { handleLoginMessage, handleSendMessage } from "./handler/ws_message.handler";
+import { channel } from "./services/message_broker.service";
 
 export const clients: Map<string, IClientInfo> = new Map();
 
@@ -23,6 +24,10 @@ export const createWebSocketServer = (port: number = 8080) => {
             } catch (error) {
                 console.error("error in handeling message: ", error)
             }
+        })
+
+        ws.on("close", async () => {
+            handleCloseConnectionRequest(ws, userId)
         })
     })
 }
@@ -47,6 +52,21 @@ export const handleConnectionRequest = (ws: WebSocket, req: IncomingMessage) => 
     return { userId }
 
 }
+
+export const handleCloseConnectionRequest = (ws: WebSocket, userId: string) => {
+    try {
+        const client = clients.get(userId);
+
+        if (client) {
+            channel.cancel(client.userId);
+            clients.delete(userId)
+        }
+    } catch (error) {
+        console.error("error in removing closing connectiom: ", error)
+    }
+}
+
+
 export const handleWebSocketMessage = async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
     if (data.type !== "login" && !clients.get(userId)?.verified) {
         ws.send(JSON.stringify(
