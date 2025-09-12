@@ -1,0 +1,26 @@
+{
+  "name": "ws-gateway",
+  "version": "0.0.1",
+  "description": "gateway for ws client",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsup --watch --onSuccess \"node dist/index.js\"",
+    "build": "tsup",
+    "start": "node dist/index.js"
+  },
+  "author": "Nikhil Gautam",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.10.9",
+    "dotenv": "^17.2.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.7",
+    "@types/dotenv": "^6.1.1",
+    "@types/node": "^24.3.1",
+    "@types/ws": "^8.18.1"
+  }
+}
