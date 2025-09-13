@@ -14,11 +14,10 @@ export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IW
             client.queue = "queue." + userId;
 
             await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
-            await channel.assertQueue(client.queue)
+            await channel.assertQueue(client.queue, { durable: false })
 
             await channel.bindQueue(client.queue, MESSAGE_EXCHANGE, userId);
 
-            channel.prefetch(2);
 
             channel.consume(client.queue, (msg: ConsumeMessage | null) => {
                 const content = msg?.content;
@@ -33,7 +32,8 @@ export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IW
             },
                 {
                     consumerTag: client.userId
-                })
+                }
+            )
 
             ws.send(
                 JSON.stringify(

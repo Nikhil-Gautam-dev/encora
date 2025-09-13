@@ -33,9 +33,8 @@ var handleLoginMessage = async (ws, userId, data) => {
       client.verified = true;
       client.queue = "queue." + userId;
       await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
-      await channel.assertQueue(client.queue);
+      await channel.assertQueue(client.queue, { durable: false });
       await channel.bindQueue(client.queue, MESSAGE_EXCHANGE, userId);
-      channel.prefetch(2);
       channel.consume(
         client.queue,
         (msg) => {

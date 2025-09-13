@@ -8,22 +8,22 @@ import Status from "./pages/Status";
 import Calls from "./pages/Calls";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
+import { WebSocketProvider } from "./context/WebSocketContext";
 
 function App() {
   const isAuthenticated = true; // TODO: replace with real auth logic
 
   return (
     <Router>
-      <Routes>
-        {/* Auth Flow */}
-        {!isAuthenticated ? (
-          <>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="*" element={<Navigate to="/login" />} />
-          </>
-        ) : (
-          <>
+      {!isAuthenticated ? (
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      ) : (
+        <WebSocketProvider userId="nik_123">
+          <Routes>
             {/* Main App Tabs */}
             <Route path="/" element={<Tabs />}>
               <Route path="chats" element={<Chats />} />
@@ -32,13 +32,13 @@ function App() {
             </Route>
 
             {/* Extra Screens */}
-            <Route path="/chat/:id" element={<ChatScreen />} />
+            <Route path="/chat/:userId" element={<ChatScreen />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/chats" />} />
-          </>
-        )}
-      </Routes>
+          </Routes>
+        </WebSocketProvider>
+      )}
     </Router>
   );
 }
