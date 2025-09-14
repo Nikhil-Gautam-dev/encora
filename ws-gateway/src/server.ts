@@ -1,7 +1,7 @@
 import { IncomingMessage } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { IClientInfo, IWebSocketMessage } from "./models/ws_client.model";
-import { handleLoginMessage, handleSendMessage } from "./handler/ws_message.handler";
+import { broadCastToAllClients, handleLoginMessage, handleSendMessage } from "./handler/ws_message.handler";
 import { channel } from "./services/message_broker.service";
 
 export const clients: Map<string, IClientInfo> = new Map();
@@ -62,6 +62,13 @@ export const handleCloseConnectionRequest = async (ws: WebSocket, userId: string
                 console.info("consumer cancelled with tag: ", client.consumerTag)
                 await channel.cancel(client.consumerTag)
             };
+
+            broadCastToAllClients(JSON.stringify(
+                {
+                    type: "user_offline",
+                    userId: userId
+                }
+            ))
 
             clients.delete(userId)
             console.info("Websocket user disconnected, userId: ",)

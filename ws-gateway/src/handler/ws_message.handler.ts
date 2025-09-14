@@ -38,6 +38,20 @@ export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IW
                 }
             )
 
+            broadCastToAllClients(JSON.stringify(
+                {
+                    type: "user_online",
+                    userId: userId
+                }
+            ))
+
+            ws.send(JSON.stringify(
+                {
+                    type: "active_users",
+                    users: Array.from(clients.keys()).filter(id => id != userId)
+                }
+            ))
+
             ws.send(
                 JSON.stringify(
                     {
@@ -89,4 +103,14 @@ export const handleSendMessage = async (ws: WebSocket, userId: string, data: IWe
         )
         return;
     }
+}
+
+export const broadCastToAllClients = (msg: string) => {
+    clients.forEach(client => {
+        const clientWS = client.ws;
+
+        if (clientWS && clientWS.readyState == WebSocket.OPEN) {
+            clientWS.send(msg);
+        }
+    })
 }

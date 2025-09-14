@@ -17,6 +17,7 @@ type WebSocketContextType = {
     chatMessages: IChatMessage[],
     messages: any[];
     readMessage: (chats: IChatMessage[]) => void;
+    activeUsers: Map<string, boolean>;
 };
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -24,6 +25,7 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 export const WebSocketProvider: React.FC<{ userId: string, children: React.ReactNode }> = ({ userId, children }) => {
     const [messages, setMessages] = useState<string[]>([]);
     const [chatMessages, setChatMessages] = useState<IChatMessage[]>([]);
+    const [activeUsers, setActiveUsers] = useState<Map<string, boolean>>(new Map());
     const socketRef = useRef<WebSocket | null>(null);
 
     useEffect(() => {
@@ -44,19 +46,49 @@ export const WebSocketProvider: React.FC<{ userId: string, children: React.React
             try {
                 const data = JSON.parse(event.data);
 
-                if (data.type == "receive_message") {
-                    const chatMessage: IChatMessage = {
-                        id: data.id,
-                        type: "receive_message",
-                        to: data.to,
-                        from: data?.from ?? "",
-                        message: data.message,
-                        read: false
-                    }
-                    setChatMessages(prev => [...prev, chatMessage])
-                    return;
+                switch (data.type) {
+                    case "receive_message":
+                        const chatMessage: IChatMessage = {
+                            id: data.id,
+                            type: "receive_message",
+                            to: data.to,
+                            from: data?.from ?? "",
+                            message: data.message,
+                            read: false
+                        }
+                        setChatMessages(prev => [...prev, chatMessage])
+                        return;
+
+                    case "user_online":
+                        setActiveUsers(prev => {
+                            const newMap = new Map(prev);
+                            newMap.set(data.userId, true);
+                            return newMap;
+                        })
+                        return;
+
+                    case "active_users":
+                        setActiveUsers(prev => {
+                            const newMap = new Map(prev);
+                            data?.users?.forEach((id: string) => {
+                                newMap.set(id, true,)
+                            })
+                            return newMap;
+                        })
+                        return;
+
+                    case "user_offline":
+                        setActiveUsers(prev => {
+                            const newMap = new Map(prev);
+                            newMap.set(data.userId, false);
+                            return newMap;
+                        })
+                        return;
+
+                    default:
+                        setMessages((prev) => [...prev, JSON.parse(event.data)]);
+                        return;
                 }
-                setMessages((prev) => [...prev, JSON.parse(event.data)]);
 
             } catch (error) {
                 console.error("error in parsing data: ", error)
@@ -84,7 +116,7 @@ export const WebSocketProvider: React.FC<{ userId: string, children: React.React
     }
 
     return (
-        <WebSocketContext.Provider value={{ socket: socketRef.current, sendMessage, messages, chatMessages, userId, readMessage }}>
+        <WebSocketContext.Provider value={{ socket: socketRef.current, sendMessage, messages, chatMessages, userId, readMessage, activeUsers }}>
             {children}
         </WebSocketContext.Provider>
     );

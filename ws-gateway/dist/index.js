@@ -78,6 +78,18 @@ var handleLoginMessage = async (ws, userId, data) => {
           consumerTag: client.consumerTag
         }
       );
+      broadCastToAllClients(JSON.stringify(
+        {
+          type: "user_online",
+          userId
+        }
+      ));
+      ws.send(JSON.stringify(
+        {
+          type: "active_users",
+          users: Array.from(clients.keys()).filter((id) => id != userId)
+        }
+      ));
       ws.send(
         JSON.stringify(
           {
@@ -127,6 +139,14 @@ var handleSendMessage = async (ws, userId, data) => {
     return;
   }
 };
+var broadCastToAllClients = (msg) => {
+  clients.forEach((client) => {
+    const clientWS = client.ws;
+    if (clientWS && clientWS.readyState == import_ws.WebSocket.OPEN) {
+      clientWS.send(msg);
+    }
+  });
+};
 
 // src/server.ts
 var clients = /* @__PURE__ */ new Map();
@@ -174,6 +194,12 @@ var handleCloseConnectionRequest = async (ws, userId) => {
         await channel.cancel(client.consumerTag);
       }
       ;
+      broadCastToAllClients(JSON.stringify(
+        {
+          type: "user_offline",
+          userId
+        }
+      ));
       clients.delete(userId);
       console.info("Websocket user disconnected, userId: ");
     }
