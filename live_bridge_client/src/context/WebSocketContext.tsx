@@ -1,5 +1,6 @@
 // src/context/WebSocketContext.tsx
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { notify } from "../utils/toast";
 
 export interface IChatMessage {
     id: string;
@@ -55,6 +56,10 @@ export const WebSocketProvider: React.FC<{ userId: string, children: React.React
                             from: data?.from ?? "",
                             message: data.message,
                             read: false
+                        }
+                        const url = location.href;
+                        if (!url.includes("chat/" + data.from)) {
+                            notify("new message from " + data.from, "message")
                         }
                         setChatMessages(prev => [...prev, chatMessage])
                         return;

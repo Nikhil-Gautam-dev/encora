@@ -10,6 +10,7 @@ import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import { WebSocketProvider } from "./context/WebSocketContext";
 import { useState } from "react";
+import { ToastContainer } from "react-toastify";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false); // TODO: replace with real auth logic
@@ -71,7 +72,18 @@ function App() {
           </Routes>
         </WebSocketProvider>
       )}
+
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        pauseOnHover
+        draggable
+      />
     </Router>
+
   );
 }
 
