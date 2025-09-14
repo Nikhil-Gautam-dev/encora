@@ -1,5 +1,14 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useWebSocket } from "../context/WebSocketContext";
+import { useState, useEffect } from "react";
 export default function Tabs() {
+    const { chatMessages } = useWebSocket();
+    const [readCount, setReadCount] = useState(0);
+
+
+    useEffect(() => {
+        setReadCount(chatMessages.filter(msg => !msg.read).length)
+    }, [chatMessages])
     return (
         <div className="flex h-screen flex-col">
             {/* Header */}
@@ -30,7 +39,7 @@ export default function Tabs() {
                         }`
                     }
                 >
-                    Chats
+                    Chats {readCount}
                 </NavLink>
                 <NavLink
                     to="/status"

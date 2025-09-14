@@ -3,24 +3,29 @@ import { useWebSocket } from "../context/WebSocketContext";
 import { useEffect, useState } from "react";
 
 const dummyChats = [
-    { id: 1, name: "Vickey", userId: "vik_123", lastMsg: "Hey, how are you?" },
-    { id: 2, name: "Nikhil", userId: "nik_123", lastMsg: "Hey, how are you?" },
+    { id: 1, name: "Vickey", userId: "vik_123", lastMsg: "Hey, how are you?", readCount: 0 },
+    { id: 2, name: "Nikhil", userId: "nik_123", lastMsg: "Hey, how are you?", readCount: 0 },
+    { id: 3, name: "rohit", userId: "rohit_123", lastMsg: "Hey, how are you?", readCount: 0 },
 ];
 
 export default function Chats() {
     const { userId, chatMessages } = useWebSocket();
-    const [readCount, setReadCount] = useState(0);
 
     const [chats, setChats] = useState<any>([]);
 
     useEffect(() => {
-        setReadCount(chatMessages.filter(msg => !msg.read).length)
-        setChats(dummyChats.filter(chat => chat.userId !== userId))
+        setChats(dummyChats
+            .filter(chat => chat.userId !== userId)
+            .map(msg => {
+                return {
+                    ...msg,
+                    readCount: chatMessages.filter(chat => chat.from === msg.userId && chat.read == false).length
+                }
+            }))
     }, [chatMessages])
 
     return (
         <div className="p-4">
-            <div>read count: {readCount}</div>
             {chats.map((chat: any) => (
                 <Link
                     key={chat.id}
@@ -33,6 +38,9 @@ export default function Chats() {
                     <div>
                         <p className="font-semibold">{chat.name}</p>
                         <p className="text-sm text-gray-500">{chat.lastMsg}</p>
+                    </div>
+                    <div>
+                        {chat.readCount}
                     </div>
                 </Link>
             ))}
