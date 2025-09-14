@@ -56,9 +56,11 @@ var handleLoginMessage = async (ws, userId, data) => {
     if (client) {
       client.verified = true;
       client.queue = "queue." + userId;
+      client.consumerTag = userId + "_" + Date.now().toString();
       await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
       await channel.assertQueue(client.queue, { durable: false });
       await channel.bindQueue(client.queue, MESSAGE_EXCHANGE, userId);
+      console.info("consumer started with tag: ", client.consumerTag);
       channel.consume(
         client.queue,
         (msg) => {
@@ -66,13 +68,13 @@ var handleLoginMessage = async (ws, userId, data) => {
           if (content && ws.readyState === import_ws.WebSocket.OPEN) {
             ws.send(JSON.stringify({
               type: "receive_message",
+              id: (/* @__PURE__ */ new Date()).getTime().toString(),
               ...JSON.parse(content.toString())
             }));
-            channel.ack(msg);
           }
         },
         {
-          consumerTag: client.userId
+          consumerTag: client.consumerTag
         }
       );
       ws.send(
@@ -130,7 +132,6 @@ var clients = /* @__PURE__ */ new Map();
 var createWebSocketServer = (port = 8080) => {
   const wss = new import_ws2.WebSocketServer({ port });
   wss.on("connection", (ws, req) => {
-    console.info("A web socket user connected!!");
     const { userId } = handleConnectionRequest(ws, req);
     if (!userId) return;
     ws.on("message", async (msg) => {
@@ -142,7 +143,7 @@ var createWebSocketServer = (port = 8080) => {
       }
     });
     ws.on("close", async () => {
-      handleCloseConnectionRequest(ws, userId);
+      await handleCloseConnectionRequest(ws, userId);
     });
   });
 };
@@ -158,16 +159,22 @@ var handleConnectionRequest = (ws, req) => {
     return { userId: null };
   }
   if (!clients.has(userId)) {
-    clients.set(userId, { ws, userId, verified: false, queue: null });
+    clients.set(userId, { ws, userId, verified: false, queue: null, consumerTag: null });
   }
+  console.log("A web socket user connected successfully, userId: ", userId);
   return { userId };
 };
-var handleCloseConnectionRequest = (ws, userId) => {
+var handleCloseConnectionRequest = async (ws, userId) => {
   try {
     const client = clients.get(userId);
     if (client) {
-      channel.cancel(client.userId);
+      if (client.consumerTag) {
+        console.info("consumer cancelled with tag: ", client.consumerTag);
+        await channel.cancel(client.consumerTag);
+      }
+      ;
       clients.delete(userId);
+      console.info("Websocket user disconnected, userId: ");
     }
   } catch (error) {
     console.error("error in removing closing connectiom: ", error);

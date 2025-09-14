@@ -11,8 +11,6 @@ export const createWebSocketServer = (port: number = 8080) => {
 
     wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 
-        console.info("A web socket user connected!!")
-
         const { userId } = handleConnectionRequest(ws, req);
 
         if (!userId) return;
@@ -27,7 +25,7 @@ export const createWebSocketServer = (port: number = 8080) => {
         })
 
         ws.on("close", async () => {
-            handleCloseConnectionRequest(ws, userId)
+            await handleCloseConnectionRequest(ws, userId)
         })
     })
 }
@@ -46,20 +44,27 @@ export const handleConnectionRequest = (ws: WebSocket, req: IncomingMessage) => 
     }
 
     if (!clients.has(userId)) {
-        clients.set(userId, { ws, userId, verified: false, queue: null })
+        clients.set(userId, { ws, userId, verified: false, queue: null, consumerTag: null })
     }
+
+    console.log("A web socket user connected successfully, userId: ", userId)
 
     return { userId }
 
 }
 
-export const handleCloseConnectionRequest = (ws: WebSocket, userId: string) => {
+export const handleCloseConnectionRequest = async (ws: WebSocket, userId: string) => {
     try {
         const client = clients.get(userId);
 
         if (client) {
-            channel.cancel(client.userId);
+            if (client.consumerTag) {
+                console.info("consumer cancelled with tag: ", client.consumerTag)
+                await channel.cancel(client.consumerTag)
+            };
+
             clients.delete(userId)
+            console.info("Websocket user disconnected, userId: ",)
         }
     } catch (error) {
         console.error("error in removing closing connectiom: ", error)

@@ -1,36 +1,48 @@
 import { useParams } from "react-router-dom";
 import { useWebSocket } from "../context/WebSocketContext";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function ChatScreen() {
-
-    const { sendMessage, messages } = useWebSocket();
-    const [message, setMessage] = useState<string>("");
+    const { sendMessage, chatMessages } = useWebSocket();
+    const [inputMessage, setInputMessage] = useState<string>("");
     const [showMessages, setShowMessages] = useState<any[]>([]);
     const { userId } = useParams();
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-
+    // Append only *new* incoming messages
     useEffect(() => {
+        const incoming = chatMessages.filter(msg => msg.from === userId);
+        setShowMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newOnes = incoming.filter((m: any) => !existingIds.has(m.id));
+            return [...prev, ...newOnes];
+        });
 
-        setShowMessages(prev => [...prev, ...messages.filter(msg => msg.type == "receive_message" && msg.from == userId)]);
+    }, [chatMessages, userId]);
 
-    }, [messages])
+    // Scroll to latest
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [showMessages]);
 
     const handleSendButton = () => {
-        console.log("message: ", message)
+        if (!inputMessage.trim()) return;
 
-        const newMessage =
-        {
-            "type": "send_message",
-            "to": userId,
-            "message": message
-        }
+        const newMessage = {
+            id: Date.now().toString(), // unique ID for deduplication
+            type: "send_message",
+            to: userId,
+            message: inputMessage,
+        };
 
-        sendMessage(JSON.stringify(newMessage))
+        // Send to server
+        sendMessage(JSON.stringify(newMessage));
 
-        setShowMessages(prev => [...prev, newMessage])
-    }
+        // Append locally
+        setShowMessages(prev => [...prev, newMessage]);
 
+        setInputMessage("");
+    };
 
     return (
         <div className="flex h-screen flex-col">
@@ -39,43 +51,34 @@ export default function ChatScreen() {
             </div>
 
             <div className="flex-1 space-y-3 overflow-y-auto bg-gray-100 p-4">
-                {
-                    showMessages.map(msg => <>
-                        {msg.type == "send_message" ?
-                            <>
-                                <div className="ml-auto max-w-xs rounded-lg bg-green-500 p-2 text-white shadow">
-                                    {msg.message}
-                                </div>
-                            </>
-                            :
-                            <>
-                                {msg.type == "receive_message" ? <>
-                                    <div className="max-w-xs rounded-lg bg-white p-2 shadow">
-                                        {msg.message}
-                                    </div>
-
-                                </> : <></>}
-
-                            </>
-                        } </>
-
-                    )
-                }
-
-
+                {showMessages.map((msg, index) => (
+                    <div key={msg.id || index}>
+                        {msg.type === "send_message" ? (
+                            <div className="ml-auto max-w-xs rounded-lg bg-green-500 p-2 text-white shadow">
+                                {msg.message}
+                            </div>
+                        ) : (
+                            <div className="max-w-xs rounded-lg bg-white p-2 shadow">
+                                {msg.message}
+                            </div>
+                        )}
+                    </div>
+                ))}
+                <div ref={messagesEndRef} />
             </div>
 
             <div className="flex gap-2 border-t p-3">
                 <input
                     type="text"
-                    value={message}
-                    onChange={e => setMessage(e.currentTarget.value)}
+                    value={inputMessage}
+                    onChange={e => setInputMessage(e.currentTarget.value)}
                     placeholder="Type a message..."
                     className="flex-1 rounded-full border px-4 py-2 outline-none focus:ring focus:ring-green-500"
                 />
                 <button
                     onClick={handleSendButton}
-                    className="rounded-full bg-green-600 px-4 py-2 text-white hover:bg-green-700">
+                    className="rounded-full bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                >
                     Send
                 </button>
             </div>

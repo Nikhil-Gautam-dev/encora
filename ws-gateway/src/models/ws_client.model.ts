@@ -5,6 +5,7 @@ export interface IClientInfo {
     userId: string;
     verified: boolean;
     queue: string | null;
+    consumerTag: string | null
 }
 
 export interface IWebSocketMessage {

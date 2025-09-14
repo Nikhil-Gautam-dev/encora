@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import { useWebSocket } from "../context/WebSocketContext";
 
 const dummyChats = [
     { id: 1, name: "vickey", userId: "vik_123", lastMsg: "Hey, how are you?" },
@@ -7,10 +6,6 @@ const dummyChats = [
 
 export default function Chats() {
 
-
-    const { messages } = useWebSocket();
-
-    console.log(messages);
 
     return (
         <div className="p-4">

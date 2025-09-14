@@ -12,6 +12,7 @@ export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IW
         if (client) {
             client.verified = true;
             client.queue = "queue." + userId;
+            client.consumerTag = userId + "_" + Date.now().toString();
 
             await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
             await channel.assertQueue(client.queue, { durable: false })
@@ -19,19 +20,20 @@ export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IW
             await channel.bindQueue(client.queue, MESSAGE_EXCHANGE, userId);
 
 
+            console.info("consumer started with tag: ", client.consumerTag)
             channel.consume(client.queue, (msg: ConsumeMessage | null) => {
                 const content = msg?.content;
                 if (content && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
                         type: "receive_message" as WebSocketMessageType,
+                        id: new Date().getTime().toString(),
                         ...JSON.parse(content.toString())
                     }));
 
-                    channel.ack(msg);
                 }
             },
                 {
-                    consumerTag: client.userId
+                    consumerTag: client.consumerTag
                 }
             )
 
