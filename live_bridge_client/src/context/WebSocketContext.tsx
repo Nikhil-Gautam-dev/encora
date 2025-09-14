@@ -11,6 +11,11 @@ export interface IChatMessage {
     read: boolean;
 }
 
+export interface IUserTyping {
+    userId: string,
+    status: boolean
+}
+
 type WebSocketContextType = {
     socket: WebSocket | null;
     userId: string;
@@ -19,6 +24,7 @@ type WebSocketContextType = {
     messages: any[];
     readMessage: (chats: IChatMessage[]) => void;
     activeUsers: Map<string, boolean>;
+    userTyping: IUserTyping;
 };
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -27,6 +33,7 @@ export const WebSocketProvider: React.FC<{ userId: string, children: React.React
     const [messages, setMessages] = useState<string[]>([]);
     const [chatMessages, setChatMessages] = useState<IChatMessage[]>([]);
     const [activeUsers, setActiveUsers] = useState<Map<string, boolean>>(new Map());
+    const [userTyping, setUserTyping] = useState<IUserTyping>({ userId: "N/A", status: false })
     const socketRef = useRef<WebSocket | null>(null);
 
     useEffect(() => {
@@ -90,6 +97,14 @@ export const WebSocketProvider: React.FC<{ userId: string, children: React.React
                         })
                         return;
 
+                    case "user_start_typing":
+                        setUserTyping({ userId: data.to, status: true })
+                        return;
+
+                    case "user_stop_typing":
+                        setUserTyping({ userId: data.to, status: false })
+                        return;
+
                     default:
                         setMessages((prev) => [...prev, JSON.parse(event.data)]);
                         return;
@@ -121,7 +136,7 @@ export const WebSocketProvider: React.FC<{ userId: string, children: React.React
     }
 
     return (
-        <WebSocketContext.Provider value={{ socket: socketRef.current, sendMessage, messages, chatMessages, userId, readMessage, activeUsers }}>
+        <WebSocketContext.Provider value={{ socket: socketRef.current, sendMessage, messages, chatMessages, userId, readMessage, activeUsers, userTyping }}>
             {children}
         </WebSocketContext.Provider>
     );

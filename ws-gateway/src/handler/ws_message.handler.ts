@@ -114,3 +114,62 @@ export const broadCastToAllClients = (msg: string) => {
         }
     })
 }
+
+export const handleUserStartTyping = async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
+    try {
+        const to = data.to;
+        if (to) {
+            const client = clients.get(to);
+
+            if (client && client.ws.readyState == WebSocket.OPEN) {
+                client.ws.send(JSON.stringify(
+                    {
+                        type: "user_start_typing",
+                        to: userId
+                    }
+                ))
+                return;
+            }
+        }
+    } catch (error) {
+        console.error("error in handling login: ", error);
+        ws.send(
+            JSON.stringify(
+                {
+                    type: "user_typing_error" as WebSocketMessageType,
+                    message: "Internal Server Error"
+                }
+            )
+        )
+        return;
+    }
+}
+export const handleUserStopTyping = async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
+    try {
+        const to = data.to;
+        if (to) {
+            const client = clients.get(to);
+
+            if (client && client.ws.readyState == WebSocket.OPEN) {
+                client.ws.send(JSON.stringify(
+                    {
+                        type: "user_stop_typing",
+                        to: userId
+                    }
+                ))
+                return;
+            }
+        }
+    } catch (error) {
+        console.error("error in handling login: ", error);
+        ws.send(
+            JSON.stringify(
+                {
+                    type: "user_typing_error" as WebSocketMessageType,
+                    message: "Internal Server Error"
+                }
+            )
+        )
+        return;
+    }
+}

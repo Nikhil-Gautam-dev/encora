@@ -123,6 +123,62 @@ var broadCastToAllClients = (msg) => {
     }
   });
 };
+var handleUserStartTyping = async (ws, userId, data) => {
+  try {
+    const to = data.to;
+    if (to) {
+      const client = clients.get(to);
+      if (client && client.ws.readyState == WebSocket.OPEN) {
+        client.ws.send(JSON.stringify(
+          {
+            type: "user_start_typing",
+            to: userId
+          }
+        ));
+        return;
+      }
+    }
+  } catch (error) {
+    console.error("error in handling login: ", error);
+    ws.send(
+      JSON.stringify(
+        {
+          type: "user_typing_error",
+          message: "Internal Server Error"
+        }
+      )
+    );
+    return;
+  }
+};
+var handleUserStopTyping = async (ws, userId, data) => {
+  try {
+    const to = data.to;
+    if (to) {
+      const client = clients.get(to);
+      if (client && client.ws.readyState == WebSocket.OPEN) {
+        client.ws.send(JSON.stringify(
+          {
+            type: "user_stop_typing",
+            to: userId
+          }
+        ));
+        return;
+      }
+    }
+  } catch (error) {
+    console.error("error in handling login: ", error);
+    ws.send(
+      JSON.stringify(
+        {
+          type: "user_typing_error",
+          message: "Internal Server Error"
+        }
+      )
+    );
+    return;
+  }
+};
 
 // src/server.ts
 var clients = /* @__PURE__ */ new Map();
@@ -199,6 +255,12 @@ var handleWebSocketMessage = async (ws, userId, data) => {
       break;
     case "send_message":
       await handleSendMessage(ws, userId, data);
+      break;
+    case "user_start_typing":
+      await handleUserStartTyping(ws, userId, data);
+      break;
+    case "user_stop_typing":
+      await handleUserStopTyping(ws, userId, data);
       break;
     case "type_error":
     default:

@@ -19,5 +19,7 @@ export type WebSocketMessageType =
     'type_error' |
     'send_message' |
     'receive_message' |
-    'send_message_error'
+    'send_message_error' |
+    'user_start_typing' |
+    'user_stop_typing'
     ;

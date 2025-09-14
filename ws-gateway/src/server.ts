@@ -1,7 +1,7 @@
 import { IncomingMessage } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { IClientInfo, IWebSocketMessage } from "./models/ws_client.model";
-import { broadCastToAllClients, handleLoginMessage, handleSendMessage } from "./handler/ws_message.handler";
+import { broadCastToAllClients, handleLoginMessage, handleSendMessage, handleUserStartTyping, handleUserStopTyping } from "./handler/ws_message.handler";
 import { channel } from "./services/message_broker.service";
 
 export const clients: Map<string, IClientInfo> = new Map();
@@ -97,6 +97,14 @@ export const handleWebSocketMessage = async (ws: WebSocket, userId: string, data
 
         case 'send_message':
             await handleSendMessage(ws, userId, data);
+            break;
+
+        case 'user_start_typing':
+            await handleUserStartTyping(ws, userId, data);
+            break;
+
+        case 'user_stop_typing':
+            await handleUserStopTyping(ws, userId, data);
             break;
 
         case 'type_error':

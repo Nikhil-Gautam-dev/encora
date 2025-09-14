@@ -3,10 +3,11 @@ import { useWebSocket } from "../context/WebSocketContext";
 import { useEffect, useRef, useState } from "react";
 
 export default function ChatScreen() {
-    const { sendMessage, chatMessages, readMessage, activeUsers } = useWebSocket();
+    const { sendMessage, chatMessages, readMessage, activeUsers, userTyping } = useWebSocket();
     const [inputMessage, setInputMessage] = useState<string>("");
     const [showMessages, setShowMessages] = useState<any[]>([]);
     const [isUserActive, setIsUserActive] = useState<boolean>(false);
+    const [isTyping, setIsTyping] = useState<boolean>(false);
     const { userId } = useParams();
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -36,6 +37,12 @@ export default function ChatScreen() {
 
     }, [chatMessages, userId, activeUsers, readMessage]);
 
+    useEffect(() => {
+        if (userTyping.userId == userId) {
+            setIsTyping(userTyping.status);
+        }
+    }, [userTyping])
+
     // Scroll to latest
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,7 +67,29 @@ export default function ChatScreen() {
         if (e.key === "Enter") {
             e.preventDefault();
             handleSendButton();
+            setIsTyping(false)
         }
+
+    };
+
+
+
+    const handleStartTyping = () => {
+        sendMessage(JSON.stringify(
+            {
+                type: "user_start_typing",
+                to: userId
+            }
+        ))
+    };
+
+    const handleStopTyping = () => {
+        sendMessage(JSON.stringify(
+            {
+                type: "user_stop_typing",
+                to: userId
+            }
+        ))
     };
 
     return (
@@ -73,7 +102,10 @@ export default function ChatScreen() {
                 <div className="flex-1">
                     <h2 className="text-lg font-semibold">User {userId}</h2>
                     <p className="text-sm text-gray-200">
-                        {isUserActive ? "Online" : "Offline"}
+                        {isTyping ? "typing..." : <>
+                            {isUserActive ? "Online" : "Offline"}
+                        </>
+                        }
                     </p>
                 </div>
             </div>
@@ -103,6 +135,10 @@ export default function ChatScreen() {
                     value={inputMessage}
                     onChange={e => setInputMessage(e.currentTarget.value)}
                     onKeyDown={handleKeyDown}
+                    onFocus={handleStartTyping}
+                    onBlur={handleStopTyping}
+
+                    // onKeyUp={handleKeyUp}
                     placeholder="Type a message..."
                     className="flex-1 rounded-full border px-4 py-2 outline-none focus:ring focus:ring-green-500"
                 />
