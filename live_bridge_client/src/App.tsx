@@ -9,9 +9,41 @@ import Calls from "./pages/Calls";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import { WebSocketProvider } from "./context/WebSocketContext";
+import { useState } from "react";
 
 function App() {
-  const isAuthenticated = true; // TODO: replace with real auth logic
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false); // TODO: replace with real auth logic
+
+  const [userId, setUserId] = useState<string>("nik_123");
+  const [inputId, setInputId] = useState("");
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-100">
+        <div className="bg-white p-6 rounded-2xl shadow-md w-80">
+          <h1 className="text-xl font-semibold mb-4 text-center">Login</h1>
+          <input
+            type="text"
+            placeholder="Enter User ID"
+            value={inputId}
+            onChange={(e) => setInputId(e.target.value)}
+            className="w-full p-2 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={() => {
+              if (inputId.trim()) {
+                setIsAuthenticated(true);
+                setUserId(inputId.trim())
+              };
+            }}
+            className="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 transition"
+          >
+            Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -22,7 +54,7 @@ function App() {
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       ) : (
-        <WebSocketProvider userId="nik_123">
+        <WebSocketProvider userId={userId}>
           <Routes>
             {/* Main App Tabs */}
             <Route path="/" element={<Tabs />}>

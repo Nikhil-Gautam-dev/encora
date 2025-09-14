@@ -30,6 +30,7 @@ export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IW
                         ...JSON.parse(content.toString())
                     }));
 
+                    channel.ack(msg)
                 }
             },
                 {

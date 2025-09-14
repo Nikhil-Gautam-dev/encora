@@ -3,7 +3,7 @@ import { useWebSocket } from "../context/WebSocketContext";
 import { useEffect, useRef, useState } from "react";
 
 export default function ChatScreen() {
-    const { sendMessage, chatMessages } = useWebSocket();
+    const { sendMessage, chatMessages, readMessage } = useWebSocket();
     const [inputMessage, setInputMessage] = useState<string>("");
     const [showMessages, setShowMessages] = useState<any[]>([]);
     const { userId } = useParams();
@@ -17,6 +17,16 @@ export default function ChatScreen() {
             const newOnes = incoming.filter((m: any) => !existingIds.has(m.id));
             return [...prev, ...newOnes];
         });
+
+        const readMessages = chatMessages.map((msg) => {
+            return {
+                ...msg,
+                read: msg.from == userId
+            }
+        })
+
+
+        readMessage(readMessages)
 
     }, [chatMessages, userId]);
 

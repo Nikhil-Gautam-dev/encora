@@ -1,25 +1,29 @@
 // src/context/WebSocketContext.tsx
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 
-export interface IChatMessages {
+export interface IChatMessage {
+    id: string;
     type: string;
     to: string;
     from: string;
     message: string;
+    read: boolean;
 }
 
 type WebSocketContextType = {
     socket: WebSocket | null;
+    userId: string;
     sendMessage: (msg: string) => void;
-    chatMessages: IChatMessages[],
+    chatMessages: IChatMessage[],
     messages: any[];
+    readMessage: (chats: IChatMessage[]) => void;
 };
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
 export const WebSocketProvider: React.FC<{ userId: string, children: React.ReactNode }> = ({ userId, children }) => {
     const [messages, setMessages] = useState<string[]>([]);
-    const [chatMessages, setChatMessages] = useState<IChatMessages[]>([]);
+    const [chatMessages, setChatMessages] = useState<IChatMessage[]>([]);
     const socketRef = useRef<WebSocket | null>(null);
 
     useEffect(() => {
@@ -41,7 +45,15 @@ export const WebSocketProvider: React.FC<{ userId: string, children: React.React
                 const data = JSON.parse(event.data);
 
                 if (data.type == "receive_message") {
-                    setChatMessages(prev => [...prev, data])
+                    const chatMessage: IChatMessage = {
+                        id: data.id,
+                        type: "receive_message",
+                        to: data.to,
+                        from: data?.from ?? "",
+                        message: data.message,
+                        read: false
+                    }
+                    setChatMessages(prev => [...prev, chatMessage])
                     return;
                 }
                 setMessages((prev) => [...prev, JSON.parse(event.data)]);
@@ -67,8 +79,12 @@ export const WebSocketProvider: React.FC<{ userId: string, children: React.React
         }
     };
 
+    const readMessage = (chat: IChatMessage[]) => {
+        setChatMessages(chat);
+    }
+
     return (
-        <WebSocketContext.Provider value={{ socket: socketRef.current, sendMessage, messages, chatMessages }}>
+        <WebSocketContext.Provider value={{ socket: socketRef.current, sendMessage, messages, chatMessages, userId, readMessage }}>
             {children}
         </WebSocketContext.Provider>
     );

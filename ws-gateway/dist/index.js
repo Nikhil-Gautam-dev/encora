@@ -71,6 +71,7 @@ var handleLoginMessage = async (ws, userId, data) => {
               id: (/* @__PURE__ */ new Date()).getTime().toString(),
               ...JSON.parse(content.toString())
             }));
+            channel.ack(msg);
           }
         },
         {
