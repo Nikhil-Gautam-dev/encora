@@ -13,18 +13,21 @@ export default function Chats() {
     const [chats, setChats] = useState<any>([]);
 
     useEffect(() => {
-        setChats(
-            dummyChats
-                .filter(chat => chat.userId !== userId)
-                .map(msg => {
-                    return {
-                        ...msg,
-                        readCount: chatMessages.filter(chat => chat.from === msg.userId && chat.read === false).length,
-                        isActive: activeUsers.get(msg.userId) ?? false,
-                    };
-                })
-        );
-    }, [chatMessages, activeUsers]);
+        const updatedChats = dummyChats
+            .filter((chat) => chat.userId !== userId)
+            .map((msg) => {
+                return {
+                    ...msg,
+                    readCount: chatMessages.filter(
+                        (chat) => chat.from === msg.userId && chat.read === false
+                    ).length,
+                    isActive: activeUsers.get(msg.userId) ?? false,
+                };
+            })
+            .sort((a, b) => b.readCount - a.readCount);
+
+        setChats(updatedChats);
+    }, [chatMessages, activeUsers, userId]);
 
     return (
         <div className="p-4 bg-gray-100 min-h-screen">
