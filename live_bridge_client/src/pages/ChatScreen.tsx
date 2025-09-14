@@ -21,7 +21,7 @@ export default function ChatScreen() {
         const readMessages = chatMessages.map((msg) => {
             return {
                 ...msg,
-                read: msg.from == userId
+                ...(msg.from == userId && { read: true })
             }
         })
 

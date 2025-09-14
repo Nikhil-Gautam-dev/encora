@@ -2,7 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useWebSocket } from "../context/WebSocketContext";
 import { useState, useEffect } from "react";
 export default function Tabs() {
-    const { chatMessages } = useWebSocket();
+    const { chatMessages, userId } = useWebSocket();
     const [readCount, setReadCount] = useState(0);
 
 
@@ -14,6 +14,7 @@ export default function Tabs() {
             {/* Header */}
             <div className="flex items-center justify-between bg-green-600 px-4 py-3 text-white shadow">
                 <h1 className="text-lg font-bold">Live Bridge</h1>
+                <h1 className="text-lg font-bold">Hi, {userId}</h1>
                 <div className="space-x-4 text-sm">
                     <NavLink
                         to="/profile"
