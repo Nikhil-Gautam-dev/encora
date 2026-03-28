@@ -44,7 +44,7 @@ const extractUsername = (input: string): string => {
 };
 
 export default function Chats() {
-    const { userId, chatMessages, activeUsers, onContactsRefresh, contactRequests } = useWebSocket();
+    const { userId, chatMessages, activeUsers, onContactsRefresh, contactRequests, registerContactNames } = useWebSocket();
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [lastMessages, setLastMessages] = useState<Record<string, LastMessageEntry>>({});
     const [showAddModal, setShowAddModal] = useState(false);
@@ -57,6 +57,8 @@ export default function Chats() {
         try {
             const res = await api.get<{ contacts: Contact[] }>("/user/contacts");
             setContacts(res.contacts);
+            const nameMap = new Map(res.contacts.map(c => [c.id, c.name]));
+            registerContactNames(nameMap);
         } catch (err: any) {
             console.error("Failed to fetch contacts:", err.message);
         }

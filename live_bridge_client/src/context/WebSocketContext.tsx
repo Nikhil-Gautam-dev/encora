@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
-import { notify } from "../utils/toast";
 import { api } from "../services/api";
 
 export interface IChatMessage {
@@ -25,6 +24,12 @@ export interface INotification {
     timestamp: string;
 }
 
+export interface IMessageBanner {
+    fromId: string;
+    name: string;
+    preview: string;
+}
+
 type WebSocketContextType = {
     socket: WebSocket | null;
     userId: string;
@@ -37,10 +42,12 @@ type WebSocketContextType = {
     notifications: INotification[];
     dismissNotification: (id: string) => void;
     clearAllNotifications: () => void;
-    // keep contactRequests as derived convenience for Chats banner
     contactRequests: INotification[];
     refreshContacts: () => void;
     onContactsRefresh: number;
+    messageBanner: IMessageBanner | null;
+    clearMessageBanner: () => void;
+    registerContactNames: (names: Map<string, string>) => void;
 };
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -65,10 +72,24 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
     const [userTyping, setUserTyping] = useState<IUserTyping>({ userId: "N/A", status: false });
     const [notifications, setNotifications] = useState<INotification[]>(loadStoredNotifications);
     const [onContactsRefresh, setOnContactsRefresh] = useState(0);
+    const [messageBanner, setMessageBanner] = useState<IMessageBanner | null>(null);
     const socketRef = useRef<WebSocket | null>(null);
+    const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Maps userId → display name for cross-chat banner lookup
+    const contactNamesRef = useRef<Map<string, string>>(new Map());
 
     const refreshContacts = useCallback(() => {
         setOnContactsRefresh(prev => prev + 1);
+    }, []);
+
+    const clearMessageBanner = useCallback(() => {
+        if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+        setMessageBanner(null);
+    }, []);
+
+    /** Called by Chats.tsx whenever it loads/reloads contacts so we can resolve names for the banner */
+    const registerContactNames = useCallback((names: Map<string, string>) => {
+        contactNamesRef.current = names;
     }, []);
 
     const addNotification = useCallback((notif: INotification) => {
@@ -203,7 +224,13 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
                                 createdAt: data.createdAt
                             };
                             if (!location.href.includes("chat/" + data.from)) {
-                                notify("New message", "message");
+                                const name = contactNamesRef.current.get(data.from) || "New message";
+                                const preview = data.message?.length > 50
+                                    ? data.message.slice(0, 47) + "…"
+                                    : data.message || "";
+                                if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+                                setMessageBanner({ fromId: data.from, name, preview });
+                                bannerTimerRef.current = setTimeout(() => setMessageBanner(null), 4000);
                             }
                             setChatMessages(prev => [...prev, chatMsg]);
                             return;
@@ -356,7 +383,10 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
             clearAllNotifications,
             contactRequests,
             refreshContacts,
-            onContactsRefresh
+            onContactsRefresh,
+            messageBanner,
+            clearMessageBanner,
+            registerContactNames
         }}>
             {children}
         </WebSocketContext.Provider>
