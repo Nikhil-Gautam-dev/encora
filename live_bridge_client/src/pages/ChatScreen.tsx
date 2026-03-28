@@ -1,154 +1,234 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useWebSocket } from "../context/WebSocketContext";
 import { useEffect, useRef, useState } from "react";
+import { api } from "../services/api";
+import { format, isToday, isYesterday } from "date-fns";
+import { ArrowLeft, Send } from "lucide-react";
+
+interface DisplayMessage {
+    id: string;
+    messageId?: string;
+    type: "send_message" | "receive_message";
+    from: string;
+    to: string;
+    message: string;
+    status: "sent" | "delivered" | "read";
+    createdAt?: string;
+}
+
+function formatMsgTime(createdAt?: string): string {
+    if (!createdAt) return "";
+    try {
+        const d = new Date(createdAt);
+        return format(d, "h:mm a");
+    } catch { return ""; }
+}
+
+function formatLastSeen(ls: string | undefined, isOnline: boolean): string {
+    if (isOnline) return "Online";
+    if (!ls) return "Offline";
+    try {
+        const d = new Date(ls);
+        if (isToday(d)) return `last seen today at ${format(d, "h:mm a")}`;
+        if (isYesterday(d)) return `last seen yesterday at ${format(d, "h:mm a")}`;
+        return `last seen ${format(d, "MMM d")}`;
+    } catch { return "Offline"; }
+}
+
+function TickIcon({ status }: { status: "sent" | "delivered" | "read" }) {
+    if (status === "sent") {
+        return <span className="text-gray-300 text-xs ml-1">✓</span>;
+    }
+    if (status === "delivered") {
+        return <span className="text-gray-300 text-xs ml-1">✓✓</span>;
+    }
+    return <span className="text-teal-300 text-xs ml-1">✓✓</span>;
+}
 
 export default function ChatScreen() {
-    const { sendMessage, chatMessages, readMessage, activeUsers, userTyping } = useWebSocket();
-    const [inputMessage, setInputMessage] = useState<string>("");
-    const [showMessages, setShowMessages] = useState<any[]>([]);
-    const [isUserActive, setIsUserActive] = useState<boolean>(false);
-    const [isTyping, setIsTyping] = useState<boolean>(false);
-    const { userId } = useParams();
+    const { sendMessage, chatMessages, readMessage, activeUsers, lastSeen, userTyping } = useWebSocket();
+    const [inputMessage, setInputMessage] = useState("");
+    const [displayMessages, setDisplayMessages] = useState<DisplayMessage[]>([]);
+    const [isTyping, setIsTyping] = useState(false);
+    const [contactName, setContactName] = useState("");
+    const { contactId } = useParams<{ contactId: string }>();
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const navigate = useNavigate();
 
-    // Append only *new* incoming messages
+    // Load message history from API
     useEffect(() => {
-        if (!userId) return;
+        if (!contactId) return;
 
-        const incoming = chatMessages.filter(msg => msg.from === userId);
+        api.get<{ user: { name: string; username: string } }>(`/user/profile-by-id/${contactId}`)
+            .then(res => setContactName(res.user?.name || contactId))
+            .catch(() => setContactName(contactId));
 
-        setShowMessages(prev => {
-            const existingIds = new Set(prev.map(m => m.id));
-            const newOnes = incoming.filter((m: any) => !existingIds.has(m.id));
-            if (newOnes.length === 0) return prev; // prevent unnecessary state updates
-            return [...prev, ...newOnes];
+        api.get<{ messages: any[] }>(`/messages/${contactId}`)
+            .then(res => {
+                const history: DisplayMessage[] = res.messages.map(m => ({
+                    id: m._id,
+                    messageId: m._id,
+                    type: m.from === contactId ? "receive_message" : "send_message",
+                    from: m.from,
+                    to: m.to,
+                    message: m.message,
+                    status: m.status,
+                    createdAt: m.createdAt
+                }));
+                setDisplayMessages(history);
+            })
+            .catch(() => {});
+    }, [contactId]);
+
+    // Merge incoming live WS messages
+    useEffect(() => {
+        if (!contactId) return;
+
+        const incoming = chatMessages.filter(m => m.from === contactId || m.to === contactId);
+
+        setDisplayMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.messageId || m.id));
+            const newOnes = incoming.filter(m => !existingIds.has(m.messageId || m.id));
+            if (newOnes.length === 0) return prev;
+            return [...prev, ...newOnes.map(m => ({
+                id: m.id,
+                messageId: m.messageId,
+                type: m.type,
+                from: m.from,
+                to: m.to,
+                message: m.message,
+                status: m.status,
+                createdAt: m.createdAt
+            }))];
         });
 
-        // Mark messages as read once
-        const unread = chatMessages.filter(msg => msg.from === userId && !msg.read);
+        // Send read receipts for unread incoming messages
+        const unread = chatMessages.filter(m => m.from === contactId && m.status !== "read");
+        unread.forEach(m => {
+            if (m.messageId) {
+                sendMessage(JSON.stringify({ type: "message_read", messageId: m.messageId }));
+            }
+        });
+
         if (unread.length > 0) {
-            const updated = chatMessages.map((msg) =>
-                msg.from === userId ? { ...msg, read: true } : msg
-            );
-            readMessage(updated);
+            readMessage(chatMessages.map(m => m.from === contactId ? { ...m, status: "read" } : m));
         }
 
-        setIsUserActive(activeUsers.get(userId) ?? false);
+    }, [chatMessages, contactId]);
 
-    }, [chatMessages, userId, activeUsers, readMessage]);
+    // Update receipt status from context
+    useEffect(() => {
+        setDisplayMessages(prev => prev.map(m => {
+            const ctx = chatMessages.find(c => c.messageId && c.messageId === m.messageId);
+            if (ctx && ctx.status !== m.status) return { ...m, status: ctx.status };
+            return m;
+        }));
+    }, [chatMessages]);
 
     useEffect(() => {
-        if (userTyping.userId == userId) {
-            setIsTyping(userTyping.status);
-        }
-    }, [userTyping])
+        if (userTyping.userId === contactId) setIsTyping(userTyping.status);
+    }, [userTyping, contactId]);
 
-    // Scroll to latest
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [showMessages]);
+    }, [displayMessages]);
 
-    const handleSendButton = () => {
-        if (!inputMessage.trim() || !userId) return;
+    const handleSend = () => {
+        if (!inputMessage.trim() || !contactId) return;
 
-        const newMessage = {
-            id: Date.now().toString(),
+        const tempId = Date.now().toString();
+        const newMsg: DisplayMessage = {
+            id: tempId,
             type: "send_message",
-            to: userId,
+            from: "",
+            to: contactId,
             message: inputMessage,
+            status: "sent",
+            createdAt: new Date().toISOString()
         };
 
-        sendMessage(JSON.stringify(newMessage));
-        setShowMessages(prev => [...prev, newMessage]);
+        sendMessage(JSON.stringify({
+            type: "send_message",
+            to: contactId,
+            message: inputMessage,
+            tempId
+        }));
+
+        setDisplayMessages(prev => [...prev, newMsg]);
         setInputMessage("");
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            handleSendButton();
-            setIsTyping(false)
-        }
-
+        if (e.key === "Enter") { e.preventDefault(); handleSend(); }
     };
 
-
-
-    const handleStartTyping = () => {
-        sendMessage(JSON.stringify(
-            {
-                type: "user_start_typing",
-                to: userId
-            }
-        ))
-    };
-
-    const handleStopTyping = () => {
-        sendMessage(JSON.stringify(
-            {
-                type: "user_stop_typing",
-                to: userId
-            }
-        ))
-    };
+    const isOnline = activeUsers.get(contactId ?? "") ?? false;
+    const ls = lastSeen.get(contactId ?? "");
 
     return (
-        <div className="flex h-screen flex-col">
+        <div className="flex h-screen flex-col bg-gray-100">
             {/* Header */}
-            <div className="flex items-center gap-3 bg-green-600 p-4 text-white shadow">
-                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-white text-green-600 font-bold">
-                    {userId?.[0]?.toUpperCase()}
+            <div className="flex items-center gap-3 bg-teal-600 px-4 py-3 text-white shadow">
+                <button onClick={() => navigate(-1)} className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-teal-500 transition">
+                    <ArrowLeft size={20} />
+                </button>
+                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-white text-teal-600 font-bold text-lg">
+                    {(contactName || contactId || "?")[0].toUpperCase()}
                 </div>
-                <div className="flex-1">
-                    <h2 className="text-lg font-semibold">User {userId}</h2>
-                    <p className="text-sm text-gray-200">
-                        {isTyping ? "typing..." : <>
-                            {isUserActive ? "Online" : "Offline"}
-                        </>
-                        }
+                <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-semibold leading-tight">{contactName || contactId}</h2>
+                    <p className="text-xs text-teal-100">
+                        {isTyping ? "typing..." : formatLastSeen(ls, isOnline)}
                     </p>
                 </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 space-y-3 overflow-y-auto bg-gray-100 p-4">
-                {showMessages.map((msg, index) => (
-                    <div key={msg.id || index} className="flex">
-                        {msg.type === "send_message" ? (
-                            <div className="ml-auto max-w-xs rounded-2xl bg-green-500 px-4 py-2 text-white shadow">
-                                {msg.message}
+            <div
+                className="flex-1 overflow-y-auto px-4 py-3 space-y-1"
+                style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0)", backgroundSize: "28px 28px" }}
+            >
+                {displayMessages.map((msg, index) => {
+                    const isSent = msg.type === "send_message";
+                    return (
+                        <div key={msg.id || index} className={`flex ${isSent ? "justify-end" : "justify-start"}`}>
+                            <div className={`relative max-w-xs px-3 py-2 rounded-2xl shadow text-sm ${
+                                isSent
+                                    ? "bg-teal-500 text-white rounded-br-sm"
+                                    : "bg-white text-gray-900 rounded-bl-sm"
+                            }`}>
+                                <span>{msg.message}</span>
+                                <div className={`flex items-center justify-end gap-0.5 mt-0.5 ${isSent ? "text-teal-100" : "text-gray-400"}`}>
+                                    <span className="text-[10px]">{formatMsgTime(msg.createdAt)}</span>
+                                    {isSent && <TickIcon status={msg.status} />}
+                                </div>
                             </div>
-                        ) : (
-                            <div className="mr-auto max-w-xs rounded-2xl bg-white px-4 py-2 shadow">
-                                {msg.message}
-                            </div>
-                        )}
-                    </div>
-                ))}
+                        </div>
+                    );
+                })}
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Bar */}
-            <div className="flex items-center gap-2 border-t bg-white p-3">
+            {/* Input */}
+            <div className="flex items-center gap-2 border-t bg-white px-3 py-2">
                 <input
                     type="text"
                     value={inputMessage}
-                    onChange={e => setInputMessage(e.currentTarget.value)}
+                    onChange={e => setInputMessage(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    onFocus={handleStartTyping}
-                    onBlur={handleStopTyping}
-
-                    // onKeyUp={handleKeyUp}
+                    onFocus={() => sendMessage(JSON.stringify({ type: "user_start_typing", to: contactId }))}
+                    onBlur={() => sendMessage(JSON.stringify({ type: "user_stop_typing", to: contactId }))}
                     placeholder="Type a message..."
-                    className="flex-1 rounded-full border px-4 py-2 outline-none focus:ring focus:ring-green-500"
+                    className="flex-1 rounded-full border px-4 py-2 outline-none focus:ring-2 focus:ring-teal-400 text-sm"
                 />
                 <button
-                    onClick={handleSendButton}
-                    className="rounded-full bg-green-600 px-4 py-2 text-white hover:bg-green-700 transition"
+                    onClick={handleSend}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600 text-white hover:bg-teal-700 transition"
                 >
-                    Send
+                    <Send size={18} />
                 </button>
             </div>
         </div>
     );
 }
+

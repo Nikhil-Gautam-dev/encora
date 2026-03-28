@@ -1,39 +1,66 @@
+import { useNavigate } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
+import { useAuth } from "../context/AuthContext";
+import { notify } from "../utils/toast";
 import { useState } from "react";
 
 export default function Login() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const { googleLogin } = useAuth();
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+
+    const handleSuccess = async (credentialResponse: any) => {
+        if (!credentialResponse.credential) {
+            notify("Google login failed", "error");
+            return;
+        }
+        setLoading(true);
+        try {
+            await googleLogin(credentialResponse.credential);
+            navigate("/chats");
+        } catch (err: any) {
+            notify(err.message || "Authentication failed", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
-        <div className="flex h-screen items-center justify-center bg-gray-100">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg">
-                <h2 className="mb-6 text-center text-2xl font-bold text-gray-800">
-                    Login
-                </h2>
-                <form className="space-y-4">
-                    <input
-                        type="email"
-                        placeholder="Email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full rounded-lg border p-2 outline-none focus:ring focus:ring-green-500"
-                    />
-                    <input
-                        type="password"
-                        placeholder="Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full rounded-lg border p-2 outline-none focus:ring focus:ring-green-500"
-                    />
-                    <button
-                        type="submit"
-                        className="w-full rounded-lg bg-green-600 p-2 text-white hover:bg-green-700"
-                    >
-                        Login
-                    </button>
-                </form>
-                <p className="mt-4 text-center text-sm text-gray-500">
-                    Don’t have an account? <a href="/signup" className="text-green-600">Sign Up</a>
+        <div className="flex h-screen items-center justify-center bg-gray-50">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg flex flex-col items-center gap-6">
+                {/* Brand */}
+                <div className="flex flex-col items-center gap-2">
+                    <div className="h-16 w-16 rounded-full bg-teal-600 flex items-center justify-center text-white text-3xl font-bold shadow">
+                        L
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-900">LiveBridge</h1>
+                    <p className="text-sm text-gray-400 text-center">Chat with friends, instantly.</p>
+                </div>
+
+                <div className="w-full border-t border-gray-100" />
+
+                {loading ? (
+                    <div className="flex items-center gap-2 text-gray-500 text-sm">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
+                        Signing you in...
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center gap-3 w-full">
+                        <p className="text-sm text-gray-500">Sign in to continue</p>
+                        <GoogleLogin
+                            onSuccess={handleSuccess}
+                            onError={() => notify("Google login failed", "error")}
+                            theme="outline"
+                            size="large"
+                            width="300"
+                            text="continue_with"
+                            shape="pill"
+                        />
+                    </div>
+                )}
+
+                <p className="text-xs text-gray-300 text-center">
+                    By continuing you agree to our terms of service
                 </p>
             </div>
         </div>

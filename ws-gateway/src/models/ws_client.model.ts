@@ -17,9 +17,16 @@ export type WebSocketMessageType =
     'login' |
     'login_error' |
     'type_error' |
+    'ping' |
+    'pong' |
     'send_message' |
     'receive_message' |
     'send_message_error' |
     'user_start_typing' |
-    'user_stop_typing'
+    'user_stop_typing' |
+    'message_delivered' |
+    'message_read' |
+    'contact_request' |
+    'contact_accepted' |
+    'contact_declined'
     ;

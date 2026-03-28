@@ -4,15 +4,22 @@
   "description": "gateway for ws client",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsup --watch --onSuccess \"node dist/index.js\"",
+    "dev": "ts-node-dev --respawn --transpile-only --quiet src/index.ts",
     "build": "tsup",
     "start": "node dist/index.js"
   },
   "author": "Nikhil Gautam",
   "license": "ISC",
   "dependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "amqplib": "^0.10.9",
+    "bcrypt": "^6.0.0",
     "dotenv": "^17.2.2",
+    "google-auth-library": "^10.6.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.3.3",
+    "ts-node-dev": "^2.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2",
     "ws": "^8.18.3"

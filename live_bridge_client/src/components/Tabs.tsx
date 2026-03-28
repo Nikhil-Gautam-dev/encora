@@ -1,57 +1,90 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, Link, useNavigate } from "react-router-dom";
 import { useWebSocket } from "../context/WebSocketContext";
-import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useState, useEffect, useRef } from "react";
+import { Bell } from "lucide-react";
 
 export default function Tabs() {
-    const { chatMessages, userId } = useWebSocket();
-    const [readCount, setReadCount] = useState(0);
+    const { chatMessages, notifications } = useWebSocket();
+    const { user, logout } = useAuth();
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [showMenu, setShowMenu] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
-        setReadCount(chatMessages.filter((msg) => !msg.read).length);
+        setUnreadCount(chatMessages.filter(m => m.status !== "read" && m.type === "receive_message").length);
     }, [chatMessages]);
 
-    const navItems = [
-        { to: "/chats", label: `Chats${readCount > 0 ? ` (${readCount})` : ""}` },
-        { to: "/status", label: "Status" },
-        { to: "/calls", label: "Calls" },
-    ];
+    // Close menu on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setShowMenu(false);
+            }
+        };
+        if (showMenu) document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [showMenu]);
+
+    const handleLogout = () => {
+        logout();
+        navigate("/login");
+    };
 
     return (
         <div className="flex h-screen flex-col">
             {/* Header */}
-            <header className="flex items-center justify-between bg-green-600 px-4 py-3 text-white shadow">
-                <h1 className="text-lg font-bold">Live Bridge</h1>
-                <span className="text-sm font-medium">Hi, {userId}</span>
-                <nav className="space-x-4 text-sm">
-                    <NavLink to="/profile" className="hover:underline">
-                        Profile
-                    </NavLink>
-                    <NavLink to="/settings" className="hover:underline">
-                        Settings
-                    </NavLink>
-                </nav>
+            <header className="flex items-center justify-between bg-teal-700 px-4 py-3 text-white shadow">
+                <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold tracking-wide">LiveBridge</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    {/* Unread message badge */}
+                    {unreadCount > 0 && (
+                        <span className="flex h-5 items-center justify-center rounded-full bg-teal-400 px-2 text-[11px] font-bold">
+                            {unreadCount}
+                        </span>
+                    )}
+
+                    {/* Notification bell — Link for reliable navigation */}
+                    <Link
+                        to="/notifications"
+                        className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-teal-600 transition"
+                        title="Notifications"
+                    >
+                        <Bell size={20} strokeWidth={1.8} />
+                        {notifications.length > 0 && (
+                            <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold">
+                                {notifications.length}
+                            </span>
+                        )}
+                    </Link>
+
+                    {/* Avatar / menu */}
+                    <div className="relative" ref={menuRef}>
+                        <button
+                            onClick={() => setShowMenu(v => !v)}
+                            className="h-9 w-9 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold hover:bg-teal-400 transition"
+                        >
+                            {user?.name?.[0]?.toUpperCase() ?? "U"}
+                        </button>
+                        {showMenu && (
+                            <div className="absolute right-0 top-11 w-44 rounded-xl bg-white shadow-lg py-1 z-50 text-gray-800">
+                                <NavLink to="/profile" onClick={() => setShowMenu(false)} className="block px-4 py-2 hover:bg-gray-50 text-sm">
+                                    My Profile
+                                </NavLink>
+                                <button onClick={handleLogout} className="block w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-red-500">
+                                    Logout
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </header>
 
-            {/* Top Tabs */}
-            <nav className="flex bg-green-700 text-white">
-                {navItems.map((item) => (
-                    <NavLink
-                        key={item.to}
-                        to={item.to}
-                        className={({ isActive }) =>
-                            `flex-1 text-center py-2 font-medium transition ${isActive
-                                ? "border-b-2 border-white"
-                                : "opacity-80 hover:opacity-100"
-                            }`
-                        }
-                    >
-                        {item.label}
-                    </NavLink>
-                ))}
-            </nav>
-
             {/* Content */}
-            <main className="flex-1 overflow-y-auto bg-gray-100">
+            <main className="flex-1 overflow-y-auto bg-gray-50">
                 <Outlet />
             </main>
         </div>

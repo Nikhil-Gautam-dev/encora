@@ -10,7 +10,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
-app.use("/health", (req: Request, res: Response) => {
+app.use("/health", (_: Request, res: Response) => {
     res.status(200).json(
         {
             success: true,
@@ -20,8 +20,10 @@ app.use("/health", (req: Request, res: Response) => {
 })
 
 import userRouter from "./routes/user.routes";
+import messageRouter from "./routes/message.routes";
 
 app.use("/api/user", userRouter);
+app.use("/api/messages", messageRouter);
 
 
 app.use((_: Request, res: Response) => {
