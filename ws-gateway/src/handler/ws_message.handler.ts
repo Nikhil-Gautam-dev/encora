@@ -175,7 +175,7 @@ export const handleSendMessage = async (ws: WebSocket, userId: string, data: IWe
     }
 }
 
-export const handleMessageRead = async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
+export const handleMessageRead = async (_ws: WebSocket, _userId: string, data: IWebSocketMessage) => {
     try {
         const { messageId } = data;
         if (!messageId) return;

@@ -10,7 +10,6 @@ export const clients: Map<string, IClientInfo> = new Map();
 export let wss: WebSocketServer;
 
 const PING_INTERVAL_MS = 30_000;  // send ping every 30s
-const PONG_TIMEOUT_MS  = 10_000;  // terminate if no pong within 10s
 
 export const createWebSocketServer = (port: number = 8080) => {
     wss = new WebSocketServer({ port });

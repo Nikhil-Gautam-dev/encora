@@ -11,7 +11,7 @@ export const getMessageHistory = async (req: Request, res: Response): Promise<vo
         const skip = (page - 1) * limit;
 
         const myObjId = new mongoose.Types.ObjectId(myId);
-        const contactObjId = new mongoose.Types.ObjectId(contactId);
+        const contactObjId = new mongoose.Types.ObjectId(contactId as string);
 
         const messages = await Message.find({
             $or: [

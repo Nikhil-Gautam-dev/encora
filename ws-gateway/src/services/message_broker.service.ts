@@ -1,7 +1,7 @@
-import amqp from "amqplib";
+import amqp, { ChannelModel } from "amqplib";
 
 export let channel: amqp.Channel;
-export let connection: amqp.Connection;
+export let connection: ChannelModel;
 
 const createChannel = async () => {
     try {
