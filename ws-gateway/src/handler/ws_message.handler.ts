@@ -7,88 +7,111 @@ import { clients } from "../server";
 import { channel } from "../services/message_broker.service";
 import { MESSAGE_EXCHANGE } from "../constant";
 import { Message } from "../models/message.schema";
+import { User } from "../models/user.schema";
+import { verifyToken } from "../middleware/auth.middleware";
 
-export const handleLoginMessage = async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
+/** Returns the accepted contact IDs for a given user from the DB */
+const getAcceptedContactIds = async (userId: string): Promise<string[]> => {
+    const user = await User.findById(userId).select("contacts").lean();
+    if (!user) return [];
+    return user.contacts
+        .filter((c: any) => c.status === "accepted")
+        .map((c: any) => c.userId.toString());
+};
+
+/** Send a message only to online accepted contacts of userId */
+export const broadcastToContacts = async (userId: string, msg: string) => {
+    const contactIds = await getAcceptedContactIds(userId);
+    for (const contactId of contactIds) {
+        const client = clients.get(contactId);
+        if (client?.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(msg);
+        }
+    }
+};
+
+export const handleLoginMessage = async (ws: WebSocket, tempId: string, data: IWebSocketMessage) => {
     try {
-        const client = clients.get(userId);
-        if (client) {
-            client.verified = true;
-            client.queue = "queue." + userId;
-            client.consumerTag = userId + "_" + Date.now().toString();
-
-            await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
-            await channel.assertQueue(client.queue, { durable: false })
-            await channel.bindQueue(client.queue, MESSAGE_EXCHANGE, userId);
-
-            // Mark all messages sent to this user as "delivered" and notify senders
-            const undelivered = await Message.find({
-                to: new mongoose.Types.ObjectId(userId),
-                status: "sent"
-            });
-
-            if (undelivered.length > 0) {
-                await Message.updateMany(
-                    { to: new mongoose.Types.ObjectId(userId), status: "sent" },
-                    { $set: { status: "delivered" } }
-                );
-
-                // Group by sender and notify each online sender
-                const bySender: Record<string, string[]> = {};
-                for (const msg of undelivered) {
-                    const senderId = msg.from.toString();
-                    if (!bySender[senderId]) bySender[senderId] = [];
-                    bySender[senderId].push(msg._id.toString());
-                }
-
-                for (const [senderId, messageIds] of Object.entries(bySender)) {
-                    const senderClient = clients.get(senderId);
-                    if (senderClient?.ws.readyState === WebSocket.OPEN) {
-                        senderClient.ws.send(JSON.stringify({
-                            type: "message_delivered" as WebSocketMessageType,
-                            messageIds
-                        }));
-                    }
-                }
-            }
-
-            console.info("consumer started with tag: ", client.consumerTag)
-            channel.consume(client.queue, (msg: ConsumeMessage | null) => {
-                const content = msg?.content;
-                if (content && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
-                        type: "receive_message" as WebSocketMessageType,
-                        ...JSON.parse(content.toString())
-                    }));
-                    channel.ack(msg)
-                }
-            },
-                { consumerTag: client.consumerTag }
-            )
-
-            broadCastToAllClients(JSON.stringify({
-                type: "user_online",
-                userId: userId
-            }))
-
-            ws.send(JSON.stringify({
-                type: "active_users",
-                users: Array.from(clients.keys()).filter(id => id != userId)
-            }))
-
-            ws.send(JSON.stringify({
-                type: "login_success",
-                message: "user logged in successfully"
-            }))
+        const token = data.token as string | undefined;
+        if (!token) {
+            ws.send(JSON.stringify({ type: "auth_error" as WebSocketMessageType, message: "Token required" }));
+            ws.close();
             return;
         }
-        throw new Error("user not in clients")
+
+        let userId: string;
+        try {
+            const payload = verifyToken(token);
+            userId = payload.userId;
+        } catch {
+            ws.send(JSON.stringify({ type: "auth_error" as WebSocketMessageType, message: "Invalid or expired token" }));
+            ws.close();
+            return;
+        }
+
+        const pendingClient = clients.get(tempId);
+        if (!pendingClient) { ws.close(); return; }
+        clients.delete(tempId);
+
+        const existing = clients.get(userId);
+        if (existing?.consumerTag) {
+            try { await channel.cancel(existing.consumerTag); } catch {}
+        }
+
+        const clientEntry = { ws, userId, verified: true, queue: "queue." + userId, consumerTag: userId + "_" + Date.now() };
+        clients.set(userId, clientEntry);
+
+        await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
+        await channel.assertQueue(clientEntry.queue, { durable: false });
+        await channel.bindQueue(clientEntry.queue, MESSAGE_EXCHANGE, userId);
+
+        // Mark undelivered messages as delivered and notify senders
+        const undelivered = await Message.find({
+            to: new mongoose.Types.ObjectId(userId),
+            status: "sent"
+        });
+
+        if (undelivered.length > 0) {
+            await Message.updateMany(
+                { to: new mongoose.Types.ObjectId(userId), status: "sent" },
+                { $set: { status: "delivered" } }
+            );
+
+            const bySender: Record<string, string[]> = {};
+            for (const msg of undelivered) {
+                const senderId = msg.from.toString();
+                if (!bySender[senderId]) bySender[senderId] = [];
+                bySender[senderId].push(msg._id.toString());
+            }
+            for (const [senderId, messageIds] of Object.entries(bySender)) {
+                const senderClient = clients.get(senderId);
+                if (senderClient?.ws.readyState === WebSocket.OPEN) {
+                    senderClient.ws.send(JSON.stringify({ type: "message_delivered" as WebSocketMessageType, messageIds }));
+                }
+            }
+        }
+
+        console.info("consumer started with tag: ", clientEntry.consumerTag);
+        channel.consume(clientEntry.queue, (msg: ConsumeMessage | null) => {
+            const content = msg?.content;
+            if (content && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "receive_message" as WebSocketMessageType, ...JSON.parse(content.toString()) }));
+                channel.ack(msg);
+            }
+        }, { consumerTag: clientEntry.consumerTag });
+
+        // Notify only accepted contacts that this user is online
+        await broadcastToContacts(userId, JSON.stringify({ type: "user_online", userId }));
+
+        // Send back only accepted contacts who are currently online
+        const contactIds = await getAcceptedContactIds(userId);
+        const onlineContacts = contactIds.filter(id => clients.has(id));
+
+        ws.send(JSON.stringify({ type: "active_users", users: onlineContacts }));
+        ws.send(JSON.stringify({ type: "login_success" as WebSocketMessageType, message: "user logged in successfully" }));
     } catch (error) {
         console.error("error in handling login: ", error);
-        ws.send(JSON.stringify({
-            type: "login_error" as WebSocketMessageType,
-            message: "Internal Server Error"
-        }))
-        return;
+        ws.send(JSON.stringify({ type: "login_error" as WebSocketMessageType, message: "Internal Server Error" }));
     }
 }
 
@@ -178,16 +201,8 @@ export const handleMessageRead = async (ws: WebSocket, userId: string, data: IWe
     }
 }
 
-export const broadCastToAllClients = (msg: string) => {
-    clients.forEach(client => {
-        const clientWS = client.ws;
-        if (clientWS && clientWS.readyState == WebSocket.OPEN) {
-            clientWS.send(msg);
-        }
-    })
-}
 
-export const handleUserStartTyping = async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
+export const handleUserStartTyping= async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
     try {
         const to = data.to;
         if (to) {

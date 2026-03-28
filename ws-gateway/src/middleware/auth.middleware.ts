@@ -33,12 +33,24 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
     }
 };
 
+/** Short-lived access token (15 min) */
 export const signToken = (payload: JwtPayload): string => {
     return jwt.sign(payload, process.env.JWT_SECRET!, {
-        expiresIn: process.env.JWT_EXPIRES_IN || "7d"
+        expiresIn: "15m"
+    } as jwt.SignOptions);
+};
+
+/** Long-lived refresh token (30 days) stored in httpOnly cookie */
+export const signRefreshToken = (payload: JwtPayload): string => {
+    return jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, {
+        expiresIn: "30d"
     } as jwt.SignOptions);
 };
 
 export const verifyToken = (token: string): JwtPayload => {
     return jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+};
+
+export const verifyRefreshToken = (token: string): JwtPayload => {
+    return jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as JwtPayload;
 };

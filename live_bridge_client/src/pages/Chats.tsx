@@ -87,7 +87,6 @@ export default function Chats() {
         setAddLoading(true);
         try {
             await api.post("/user/contacts/request", { username });
-            notify("Contact request sent!", "success");
             setAddProfileUrl("");
             setShowAddModal(false);
         } catch (err: any) {
@@ -134,29 +133,29 @@ export default function Chats() {
         });
 
     return (
-        <div className="flex flex-col h-full bg-gray-50">
+        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-950">
             {/* Requests banner */}
             {contactRequests.length > 0 && (
                 <div
-                    className="flex items-center justify-between bg-teal-50 border-b border-teal-100 px-4 py-2 cursor-pointer"
+                    className="flex items-center justify-between bg-teal-50 dark:bg-teal-900/30 border-b border-teal-100 dark:border-teal-800 px-4 py-2 cursor-pointer"
                     onClick={() => navigate("/notifications")}
                 >
-                    <span className="text-sm text-teal-700 font-medium">
+                    <span className="text-sm text-teal-700 dark:text-teal-300 font-medium">
                         {contactRequests.length} pending contact request{contactRequests.length > 1 ? "s" : ""}
                     </span>
-                    <span className="text-xs text-teal-500">View →</span>
+                    <span className="text-xs text-teal-500 dark:text-teal-400">View →</span>
                 </div>
             )}
 
             {/* Contact list */}
             <div className="flex-1 overflow-y-auto">
                 {contacts.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                    <div className="flex flex-col items-center justify-center h-64 text-gray-400 dark:text-gray-500">
                         <p className="text-lg">No contacts yet</p>
                         <p className="text-sm mt-1">Add someone to start chatting</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
                         {sortedContacts.map((contact) => {
                             const unread = getUnreadCount(contact.id);
                             const isActive = activeUsers.get(contact.id) ?? false;
@@ -165,25 +164,25 @@ export default function Chats() {
                                 <Link
                                     key={contact.id}
                                     to={`/chat/${contact.id}`}
-                                    className="flex items-center gap-3 bg-white px-4 py-3 hover:bg-gray-50 transition"
+                                    className="flex items-center gap-3 bg-white dark:bg-gray-900 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
                                 >
                                     <div className="relative shrink-0">
-                                        <div className="h-12 w-12 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-semibold text-lg">
+                                        <div className="h-12 w-12 rounded-full bg-teal-100 dark:bg-teal-900/50 flex items-center justify-center text-teal-700 dark:text-teal-300 font-semibold text-lg">
                                             {contact.name[0].toUpperCase()}
                                         </div>
-                                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${isActive ? "bg-teal-500" : "bg-gray-300"}`} />
+                                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 ${isActive ? "bg-teal-500" : "bg-gray-300 dark:bg-gray-600"}`} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-baseline gap-2">
-                                            <p className="font-semibold text-gray-900 truncate">{contact.name}</p>
+                                            <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{contact.name}</p>
                                             {preview && (
-                                                <span className={`shrink-0 text-[11px] ${unread > 0 ? "text-teal-600 font-semibold" : "text-gray-400"}`}>
+                                                <span className={`shrink-0 text-[11px] ${unread > 0 ? "text-teal-600 dark:text-teal-400 font-semibold" : "text-gray-400 dark:text-gray-500"}`}>
                                                     {preview.date}
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex items-center justify-between mt-0.5 gap-2">
-                                            <p className={`text-xs truncate ${unread > 0 ? "text-gray-700 font-medium" : "text-gray-400"}`}>
+                                            <p className={`text-xs truncate ${unread > 0 ? "text-gray-700 dark:text-gray-300 font-medium" : "text-gray-400 dark:text-gray-500"}`}>
                                                 {preview
                                                     ? `${preview.isMine ? "You: " : ""}${preview.text}`
                                                     : <span className="italic">No messages yet</span>
@@ -205,10 +204,10 @@ export default function Chats() {
 
             {/* Add Contact Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowAddModal(false)}>
-                    <div className="bg-white rounded-2xl p-6 w-80 shadow-xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold mb-1 text-gray-800">Add Contact</h3>
-                        <p className="text-xs text-gray-400 mb-4">Paste the person's profile link</p>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddModal(false)}>
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-80 shadow-xl border border-gray-100 dark:border-gray-700" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-semibold mb-1 text-gray-800 dark:text-gray-100">Add Contact</h3>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Paste the person's profile link</p>
                         <input
                             ref={addInputRef}
                             type="text"
@@ -216,12 +215,12 @@ export default function Chats() {
                             value={addProfileUrl}
                             onChange={e => setAddProfileUrl(e.target.value)}
                             onKeyDown={e => e.key === "Enter" && handleAddContact()}
-                            className="w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-teal-500 mb-4 text-sm"
+                            className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 p-2 outline-none focus:ring-2 focus:ring-teal-500 mb-4 text-sm"
                         />
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setShowAddModal(false)}
-                                className="flex-1 rounded-lg border py-2 text-gray-600 hover:bg-gray-50 transition"
+                                className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
                             >
                                 Cancel
                             </button>

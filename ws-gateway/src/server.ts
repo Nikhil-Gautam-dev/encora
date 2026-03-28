@@ -1,9 +1,8 @@
 import { IncomingMessage } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { IClientInfo, IWebSocketMessage } from "./models/ws_client.model";
-import { broadCastToAllClients, handleLoginMessage, handleSendMessage, handleUserStartTyping, handleUserStopTyping, handleMessageRead } from "./handler/ws_message.handler";
+import { broadcastToContacts, handleLoginMessage, handleSendMessage, handleUserStartTyping, handleUserStopTyping, handleMessageRead } from "./handler/ws_message.handler";
 import { channel } from "./services/message_broker.service";
-import { verifyToken } from "./middleware/auth.middleware";
 import { User } from "./models/user.schema";
 
 export const clients: Map<string, IClientInfo> = new Map();
@@ -60,34 +59,13 @@ export const createWebSocketServer = (port: number = 8080) => {
     });
 };
 
-export const handleConnectionRequest = (ws: WebSocket, req: IncomingMessage) => {
-    const url = new URL(req.url ?? '', `http://${req.headers.host}`)
-    const token = url.searchParams.get("token")
-
-    if (!token) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Authentication token is required' }))
-        ws.close();
-        return { userId: null };
-    }
-
-    let userId: string;
-    try {
-        const payload = verifyToken(token);
-        userId = payload.userId;
-    } catch {
-        ws.send(JSON.stringify({ type: 'error', message: 'Invalid or expired token' }))
-        ws.close();
-        return { userId: null };
-    }
-
-    if (!clients.has(userId)) {
-        clients.set(userId, { ws, userId, verified: false, queue: null, consumerTag: null })
-    }
-
-    console.log("WebSocket user connected, userId:", userId)
-
-    return { userId }
-
+export const handleConnectionRequest = (ws: WebSocket, _req: IncomingMessage) => {
+    // Accept the raw connection — auth happens when client sends { type: "login", token }
+    // This avoids exposing the JWT in the URL (server logs, browser history, etc.)
+    const tempId = `pending_${Date.now()}_${Math.random()}`;
+    clients.set(tempId, { ws, userId: tempId, verified: false, queue: null, consumerTag: null });
+    console.log("WebSocket connection accepted (pending auth), tempId:", tempId);
+    return { userId: tempId };
 }
 
 export const handleCloseConnectionRequest = async (_: WebSocket, userId: string) => {
@@ -100,18 +78,20 @@ export const handleCloseConnectionRequest = async (_: WebSocket, userId: string)
                 await channel.cancel(client.consumerTag)
             };
 
-            const lastSeen = new Date();
-            await User.findByIdAndUpdate(userId, { lastSeen });
+            clients.delete(userId);
 
-            broadCastToAllClients(JSON.stringify(
-                {
+            if (!userId.startsWith("pending_")) {
+                const lastSeen = new Date();
+                await User.findByIdAndUpdate(userId, { lastSeen });
+
+                // Only notify accepted contacts that this user went offline
+                await broadcastToContacts(userId, JSON.stringify({
                     type: "user_offline",
-                    userId: userId,
+                    userId,
                     lastSeen: lastSeen.toISOString()
-                }
-            ))
+                }));
+            }
 
-            clients.delete(userId)
             console.info("Websocket user disconnected, userId:", userId)
         }
     } catch (error) {
@@ -120,22 +100,23 @@ export const handleCloseConnectionRequest = async (_: WebSocket, userId: string)
 }
 
 
-export const handleWebSocketMessage = async (ws: WebSocket, userId: string, data: IWebSocketMessage) => {
-    if (data.type !== "login" && !clients.get(userId)?.verified) {
-        ws.send(JSON.stringify(
-            {
-                type: 'type_error',
-                message: "Unauthorized message type"
-            }
-        ))
+export const handleWebSocketMessage = async (ws: WebSocket, tempId: string, data: IWebSocketMessage) => {
+    // For login, pass tempId — handler will re-key to real userId after token verification
+    if (data.type === "login") {
+        await handleLoginMessage(ws, tempId, data);
         return;
     }
 
-    switch (data.type) {
-        case 'login':
-            await handleLoginMessage(ws, userId, data)
-            break;
+    // For all other messages, find the authenticated client by ws reference
+    const authenticatedEntry = Array.from(clients.values()).find(c => c.ws === ws && c.verified);
+    if (!authenticatedEntry) {
+        ws.send(JSON.stringify({ type: 'type_error', message: "Unauthorized message type" }));
+        return;
+    }
 
+    const userId = authenticatedEntry.userId;
+
+    switch (data.type) {
         case 'send_message':
             await handleSendMessage(ws, userId, data);
             break;
@@ -154,12 +135,7 @@ export const handleWebSocketMessage = async (ws: WebSocket, userId: string, data
 
         case 'type_error':
         default:
-            ws.send(JSON.stringify(
-                {
-                    type: "type_error",
-                    message: "Invalid message type"
-                }
-            ))
+            ws.send(JSON.stringify({ type: "type_error", message: "Invalid message type" }));
             break;
     }
 }

@@ -166,18 +166,18 @@ export default function ChatScreen() {
     const ls = lastSeen.get(contactId ?? "");
 
     return (
-        <div className="flex h-screen flex-col bg-gray-100">
+        <div className="flex h-screen flex-col bg-gray-100 dark:bg-gray-950">
             {/* Header */}
-            <div className="flex items-center gap-3 bg-teal-600 px-4 py-3 text-white shadow">
-                <button onClick={() => navigate(-1)} className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-teal-500 transition">
+            <div className="flex items-center gap-3 bg-teal-600 dark:bg-teal-900 px-4 py-3 text-white shadow">
+                <button onClick={() => navigate(-1)} className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-teal-500 dark:hover:bg-teal-800 transition">
                     <ArrowLeft size={20} />
                 </button>
-                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-white text-teal-600 font-bold text-lg">
+                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-white dark:bg-gray-700 text-teal-600 dark:text-teal-300 font-bold text-lg">
                     {(contactName || contactId || "?")[0].toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                     <h2 className="text-base font-semibold leading-tight">{contactName || contactId}</h2>
-                    <p className="text-xs text-teal-100">
+                    <p className="text-xs text-teal-100 dark:text-teal-300">
                         {isTyping ? "typing..." : formatLastSeen(ls, isOnline)}
                     </p>
                 </div>
@@ -185,20 +185,22 @@ export default function ChatScreen() {
 
             {/* Messages */}
             <div
-                className="flex-1 overflow-y-auto px-4 py-3 space-y-1"
-                style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0)", backgroundSize: "28px 28px" }}
+                className="flex-1 overflow-y-auto scrollbar-hidden px-4 py-3 space-y-1"
+                style={{ backgroundImage: "radial-gradient(circle at 1px 1px, var(--dot-color, #e5e7eb) 1px, transparent 0)", backgroundSize: "28px 28px" }}
             >
+                <style>{`.dark [data-chat-bg] { --dot-color: #374151; }`}</style>
+                <div data-chat-bg className="absolute inset-0 -z-10" />
                 {displayMessages.map((msg, index) => {
                     const isSent = msg.type === "send_message";
                     return (
                         <div key={msg.id || index} className={`flex ${isSent ? "justify-end" : "justify-start"}`}>
                             <div className={`relative max-w-xs px-3 py-2 rounded-2xl shadow text-sm ${
                                 isSent
-                                    ? "bg-teal-500 text-white rounded-br-sm"
-                                    : "bg-white text-gray-900 rounded-bl-sm"
+                                    ? "bg-teal-500 dark:bg-teal-700 text-white rounded-br-sm"
+                                    : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm"
                             }`}>
                                 <span>{msg.message}</span>
-                                <div className={`flex items-center justify-end gap-0.5 mt-0.5 ${isSent ? "text-teal-100" : "text-gray-400"}`}>
+                                <div className={`flex items-center justify-end gap-0.5 mt-0.5 ${isSent ? "text-teal-100" : "text-gray-400 dark:text-gray-500"}`}>
                                     <span className="text-[10px]">{formatMsgTime(msg.createdAt)}</span>
                                     {isSent && <TickIcon status={msg.status} />}
                                 </div>
@@ -210,7 +212,7 @@ export default function ChatScreen() {
             </div>
 
             {/* Input */}
-            <div className="flex items-center gap-2 border-t bg-white px-3 py-2">
+            <div className="flex items-center gap-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2">
                 <input
                     type="text"
                     value={inputMessage}
@@ -219,11 +221,11 @@ export default function ChatScreen() {
                     onFocus={() => sendMessage(JSON.stringify({ type: "user_start_typing", to: contactId }))}
                     onBlur={() => sendMessage(JSON.stringify({ type: "user_stop_typing", to: contactId }))}
                     placeholder="Type a message..."
-                    className="flex-1 rounded-full border px-4 py-2 outline-none focus:ring-2 focus:ring-teal-400 text-sm"
+                    className="flex-1 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 px-4 py-2 outline-none focus:ring-2 focus:ring-teal-400 text-sm"
                 />
                 <button
                     onClick={handleSend}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600 text-white hover:bg-teal-700 transition"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-700 dark:hover:bg-teal-600 transition"
                 >
                     <Send size={18} />
                 </button>

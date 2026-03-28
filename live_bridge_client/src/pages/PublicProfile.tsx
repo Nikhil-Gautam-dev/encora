@@ -30,7 +30,6 @@ export default function PublicProfile() {
         setRequesting(true);
         try {
             await api.post("/user/contacts/request", { username });
-            notify("Contact request sent!", "success");
         } catch (err: any) {
             notify(err.message || "Failed to send request", "error");
         } finally {
@@ -40,7 +39,7 @@ export default function PublicProfile() {
 
     if (loading) {
         return (
-            <div className="flex h-screen items-center justify-center">
+            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
             </div>
         );
@@ -48,7 +47,7 @@ export default function PublicProfile() {
 
     if (!profile) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-2 text-gray-500">
+            <div className="flex h-screen flex-col items-center justify-center gap-2 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-950">
                 <p className="text-2xl">😶</p>
                 <p className="font-medium">User not found</p>
             </div>
@@ -56,13 +55,13 @@ export default function PublicProfile() {
     }
 
     return (
-        <div className="flex h-screen flex-col items-center justify-center bg-gray-50 px-4">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg text-center">
+        <div className="flex h-screen flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 p-8 shadow-lg text-center border border-gray-100 dark:border-gray-800">
                 <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-teal-500 text-white text-3xl font-bold">
                     {profile.name[0].toUpperCase()}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">{profile.name}</h2>
-                <p className="mt-1 text-sm text-gray-400">@{profile.username}</p>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{profile.name}</h2>
+                <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">@{profile.username}</p>
                 <button
                     onClick={handleAddContact}
                     disabled={requesting}

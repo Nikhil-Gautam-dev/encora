@@ -15,7 +15,9 @@ export interface IWebSocketMessage {
 
 export type WebSocketMessageType =
     'login' |
+    'login_success' |
     'login_error' |
+    'auth_error' |
     'type_error' |
     'ping' |
     'pong' |
@@ -26,6 +28,7 @@ export type WebSocketMessageType =
     'user_stop_typing' |
     'message_delivered' |
     'message_read' |
+    'message_sent_ack' |
     'contact_request' |
     'contact_accepted' |
     'contact_declined'

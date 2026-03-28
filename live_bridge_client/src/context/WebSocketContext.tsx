@@ -146,14 +146,15 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
         const connect = () => {
             if (destroyed) return;
 
-            const url = `${import.meta.env.VITE_WS_URL || "ws://localhost:8080"}?token=${token}`;
+            const url = `${import.meta.env.VITE_WS_URL || "ws://localhost:8080"}`;
             ws = new WebSocket(url);
             socketRef.current = ws;
 
             ws.onopen = () => {
                 console.info(`WebSocket connected (attempt ${attempt + 1})`);
-                attempt = 0;  // reset backoff on success
-                ws.send(JSON.stringify({ type: "login" }));
+                attempt = 0;
+                // Send token inside the login message — never expose it in the URL
+                ws.send(JSON.stringify({ type: "login", token }));
                 startHeartbeat(ws);
             };
 
@@ -163,8 +164,32 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
 
                     switch (data.type) {
                         case "pong":
-                            // server acknowledged our ping — connection is alive
                             return;
+
+                        case "auth_error": {
+                            // Token expired mid-session — try refreshing then reconnect
+                            console.warn("WS auth_error received, attempting token refresh...");
+                            clearHeartbeat();
+                            fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3001/api"}/user/refresh`, {
+                                method: "POST",
+                                credentials: "include"
+                            }).then(r => {
+                                if (r.ok) {
+                                    // The AuthContext listener will update the token prop and
+                                    // re-mount this effect — just close cleanly for now
+                                    ws.close(1000, "Token refreshed");
+                                } else {
+                                    window.dispatchEvent(new Event("lb:session-expired"));
+                                    destroyed = true;
+                                    ws.close(1000, "Session expired");
+                                }
+                            }).catch(() => {
+                                window.dispatchEvent(new Event("lb:session-expired"));
+                                destroyed = true;
+                                ws.close(1000, "Session expired");
+                            });
+                            return;
+                        }
 
                         case "receive_message": {
                             const chatMsg: IChatMessage = {
@@ -244,7 +269,6 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
                                 from: data.from,
                                 timestamp: new Date().toISOString()
                             });
-                            notify(`Contact request from ${data.from.name}`, "info");
                             return;
 
                         case "contact_accepted":
@@ -254,7 +278,6 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
                                 from: data.by,
                                 timestamp: new Date().toISOString()
                             });
-                            notify(`${data.by.name} accepted your contact request`, "success");
                             refreshContacts();
                             return;
 
@@ -265,7 +288,6 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
                                 from: data.by,
                                 timestamp: new Date().toISOString()
                             });
-                            notify(`${data.by.name} declined your contact request`, "info");
                             return;
 
                         default:

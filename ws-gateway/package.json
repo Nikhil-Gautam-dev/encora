@@ -15,6 +15,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "amqplib": "^0.10.9",
     "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.2",
     "google-auth-library": "^10.6.2",
     "jsonwebtoken": "^9.0.3",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.7",
+    "@types/cookie-parser": "^1.4.10",
     "@types/dotenv": "^6.1.1",
     "@types/node": "^24.3.1",
     "@types/ws": "^8.18.1"

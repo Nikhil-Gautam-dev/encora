@@ -1,14 +1,14 @@
 import { toast } from "react-toastify";
 
-const audio = new Audio("/notification.mp3"); // put file in public/
+const audio = new Audio("/notification.mp3");
+
+const isSoundEnabled = () => localStorage.getItem("lb_notification_sound") !== "false";
 
 export const notify = (message: string, type: "info" | "success" | "error" | "message" = "info") => {
-    // Play sound
-    audio.play().catch(err => {
-        console.log("Autoplay blocked:", err);
-    });
+    if (isSoundEnabled()) {
+        audio.play().catch(() => {});
+    }
 
-    // Show toast
     switch (type) {
         case "success":
             toast.success(message);
@@ -17,9 +17,7 @@ export const notify = (message: string, type: "info" | "success" | "error" | "me
             toast.error(message);
             break;
         case "message":
-            toast.info(message, {
-                hideProgressBar: true
-            })
+            toast.info(message, { hideProgressBar: true });
             break;
         default:
             toast.info(message);

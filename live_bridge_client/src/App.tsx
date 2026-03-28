@@ -3,6 +3,7 @@ import { ToastContainer } from "react-toastify";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { WebSocketProvider } from "./context/WebSocketContext";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import Login from "./pages/Login";
 import Tabs from "./components/Tabs";
 import Chats from "./pages/Chats";
@@ -12,7 +13,15 @@ import PublicProfile from "./pages/PublicProfile";
 import Notifications from "./pages/Notifications";
 
 function AppRoutes() {
-    const { isAuthenticated, user, token } = useAuth();
+    const { isAuthenticated, isLoading, user, token } = useAuth();
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-950">
+                <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     if (!isAuthenticated) {
         return (
@@ -43,21 +52,31 @@ function AppRoutes() {
 function App() {
     return (
         <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
-            <AuthProvider>
-                <Router>
-                    <AppRoutes />
-                    <ToastContainer
-                        position="top-right"
-                        autoClose={3000}
-                        hideProgressBar={false}
-                        newestOnTop
-                        closeOnClick
-                        pauseOnHover
-                        draggable
-                    />
-                </Router>
-            </AuthProvider>
+            <ThemeProvider>
+                <AuthProvider>
+                    <Router>
+                        <AppRoutes />
+                        <ThemedToast />
+                    </Router>
+                </AuthProvider>
+            </ThemeProvider>
         </GoogleOAuthProvider>
+    );
+}
+
+function ThemedToast() {
+    const { darkMode } = useTheme();
+    return (
+        <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            pauseOnHover
+            draggable
+            theme={darkMode ? "dark" : "light"}
+        />
     );
 }
 

@@ -27758,7 +27758,7 @@ import { WebSocketServer } from "ws";
 // src/handler/ws_message.handler.ts
 init_esm_shims();
 import { WebSocket as WebSocket2 } from "ws";
-import mongoose3 from "mongoose";
+import mongoose4 from "mongoose";
 
 // src/constant.ts
 init_esm_shims();
@@ -27780,79 +27780,152 @@ messageSchema.index({ from: 1, to: 1 });
 messageSchema.index({ to: 1, status: 1 });
 var Message = mongoose2.model("Message", messageSchema);
 
-// src/handler/ws_message.handler.ts
-var handleLoginMessage = async (ws, userId, data) => {
+// src/models/user.schema.ts
+init_esm_shims();
+import mongoose3, { Schema as Schema2 } from "mongoose";
+var contactEntrySchema = new Schema2(
+  {
+    userId: { type: Schema2.Types.ObjectId, ref: "User", required: true },
+    status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" }
+  },
+  { _id: false }
+);
+var userSchema = new Schema2(
+  {
+    name: { type: String, required: true, trim: true },
+    username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    googleId: { type: String, required: true, unique: true },
+    lastSeen: { type: Date, default: Date.now },
+    contacts: { type: [contactEntrySchema], default: [] }
+  },
+  { timestamps: true }
+);
+var User = mongoose3.model("User", userSchema);
+
+// src/middleware/auth.middleware.ts
+init_esm_shims();
+import jwt from "jsonwebtoken";
+var authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({ success: false, message: "Unauthorized" });
+    return;
+  }
+  const token = authHeader.split(" ")[1];
   try {
-    const client2 = clients.get(userId);
-    if (client2) {
-      client2.verified = true;
-      client2.queue = "queue." + userId;
-      client2.consumerTag = userId + "_" + Date.now().toString();
-      await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
-      await channel.assertQueue(client2.queue, { durable: false });
-      await channel.bindQueue(client2.queue, MESSAGE_EXCHANGE, userId);
-      const undelivered = await Message.find({
-        to: new mongoose3.Types.ObjectId(userId),
-        status: "sent"
-      });
-      if (undelivered.length > 0) {
-        await Message.updateMany(
-          { to: new mongoose3.Types.ObjectId(userId), status: "sent" },
-          { $set: { status: "delivered" } }
-        );
-        const bySender = {};
-        for (const msg of undelivered) {
-          const senderId = msg.from.toString();
-          if (!bySender[senderId]) bySender[senderId] = [];
-          bySender[senderId].push(msg._id.toString());
-        }
-        for (const [senderId, messageIds] of Object.entries(bySender)) {
-          const senderClient = clients.get(senderId);
-          if (senderClient?.ws.readyState === WebSocket2.OPEN) {
-            senderClient.ws.send(JSON.stringify({
-              type: "message_delivered",
-              messageIds
-            }));
-          }
-        }
-      }
-      console.info("consumer started with tag: ", client2.consumerTag);
-      channel.consume(
-        client2.queue,
-        (msg) => {
-          const content = msg?.content;
-          if (content && ws.readyState === WebSocket2.OPEN) {
-            ws.send(JSON.stringify({
-              type: "receive_message",
-              ...JSON.parse(content.toString())
-            }));
-            channel.ack(msg);
-          }
-        },
-        { consumerTag: client2.consumerTag }
-      );
-      broadCastToAllClients(JSON.stringify({
-        type: "user_online",
-        userId
-      }));
-      ws.send(JSON.stringify({
-        type: "active_users",
-        users: Array.from(clients.keys()).filter((id) => id != userId)
-      }));
-      ws.send(JSON.stringify({
-        type: "login_success",
-        message: "user logged in successfully"
-      }));
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ success: false, message: "Invalid or expired token" });
+  }
+};
+var signToken = (payload) => {
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: "15m"
+  });
+};
+var signRefreshToken = (payload) => {
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: "30d"
+  });
+};
+var verifyToken = (token) => {
+  return jwt.verify(token, process.env.JWT_SECRET);
+};
+var verifyRefreshToken = (token) => {
+  return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+};
+
+// src/handler/ws_message.handler.ts
+var getAcceptedContactIds = async (userId) => {
+  const user = await User.findById(userId).select("contacts").lean();
+  if (!user) return [];
+  return user.contacts.filter((c) => c.status === "accepted").map((c) => c.userId.toString());
+};
+var broadcastToContacts = async (userId, msg) => {
+  const contactIds = await getAcceptedContactIds(userId);
+  for (const contactId of contactIds) {
+    const client2 = clients.get(contactId);
+    if (client2?.ws.readyState === WebSocket2.OPEN) {
+      client2.ws.send(msg);
+    }
+  }
+};
+var handleLoginMessage = async (ws, tempId, data) => {
+  try {
+    const token = data.token;
+    if (!token) {
+      ws.send(JSON.stringify({ type: "auth_error", message: "Token required" }));
+      ws.close();
       return;
     }
-    throw new Error("user not in clients");
+    let userId;
+    try {
+      const payload = verifyToken(token);
+      userId = payload.userId;
+    } catch {
+      ws.send(JSON.stringify({ type: "auth_error", message: "Invalid or expired token" }));
+      ws.close();
+      return;
+    }
+    const pendingClient = clients.get(tempId);
+    if (!pendingClient) {
+      ws.close();
+      return;
+    }
+    clients.delete(tempId);
+    const existing = clients.get(userId);
+    if (existing?.consumerTag) {
+      try {
+        await channel.cancel(existing.consumerTag);
+      } catch {
+      }
+    }
+    const clientEntry = { ws, userId, verified: true, queue: "queue." + userId, consumerTag: userId + "_" + Date.now() };
+    clients.set(userId, clientEntry);
+    await channel.assertExchange(MESSAGE_EXCHANGE, "direct", { durable: false });
+    await channel.assertQueue(clientEntry.queue, { durable: false });
+    await channel.bindQueue(clientEntry.queue, MESSAGE_EXCHANGE, userId);
+    const undelivered = await Message.find({
+      to: new mongoose4.Types.ObjectId(userId),
+      status: "sent"
+    });
+    if (undelivered.length > 0) {
+      await Message.updateMany(
+        { to: new mongoose4.Types.ObjectId(userId), status: "sent" },
+        { $set: { status: "delivered" } }
+      );
+      const bySender = {};
+      for (const msg of undelivered) {
+        const senderId = msg.from.toString();
+        if (!bySender[senderId]) bySender[senderId] = [];
+        bySender[senderId].push(msg._id.toString());
+      }
+      for (const [senderId, messageIds] of Object.entries(bySender)) {
+        const senderClient = clients.get(senderId);
+        if (senderClient?.ws.readyState === WebSocket2.OPEN) {
+          senderClient.ws.send(JSON.stringify({ type: "message_delivered", messageIds }));
+        }
+      }
+    }
+    console.info("consumer started with tag: ", clientEntry.consumerTag);
+    channel.consume(clientEntry.queue, (msg) => {
+      const content = msg?.content;
+      if (content && ws.readyState === WebSocket2.OPEN) {
+        ws.send(JSON.stringify({ type: "receive_message", ...JSON.parse(content.toString()) }));
+        channel.ack(msg);
+      }
+    }, { consumerTag: clientEntry.consumerTag });
+    await broadcastToContacts(userId, JSON.stringify({ type: "user_online", userId }));
+    const contactIds = await getAcceptedContactIds(userId);
+    const onlineContacts = contactIds.filter((id) => clients.has(id));
+    ws.send(JSON.stringify({ type: "active_users", users: onlineContacts }));
+    ws.send(JSON.stringify({ type: "login_success", message: "user logged in successfully" }));
   } catch (error) {
     console.error("error in handling login: ", error);
-    ws.send(JSON.stringify({
-      type: "login_error",
-      message: "Internal Server Error"
-    }));
-    return;
+    ws.send(JSON.stringify({ type: "login_error", message: "Internal Server Error" }));
   }
 };
 var handleSendMessage = async (ws, userId, data) => {
@@ -27861,8 +27934,8 @@ var handleSendMessage = async (ws, userId, data) => {
     const msg = data.message;
     if (!to || !msg) return;
     const savedMessage = await Message.create({
-      from: new mongoose3.Types.ObjectId(userId),
-      to: new mongoose3.Types.ObjectId(to),
+      from: new mongoose4.Types.ObjectId(userId),
+      to: new mongoose4.Types.ObjectId(to),
       message: msg,
       status: "sent"
     });
@@ -27923,14 +27996,6 @@ var handleMessageRead = async (ws, userId, data) => {
     console.error("error in handleMessageRead: ", error);
   }
 };
-var broadCastToAllClients = (msg) => {
-  clients.forEach((client2) => {
-    const clientWS = client2.ws;
-    if (clientWS && clientWS.readyState == WebSocket2.OPEN) {
-      clientWS.send(msg);
-    }
-  });
-};
 var handleUserStartTyping = async (ws, userId, data) => {
   try {
     const to = data.to;
@@ -27969,56 +28034,6 @@ var handleUserStopTyping = async (ws, userId, data) => {
     return;
   }
 };
-
-// src/middleware/auth.middleware.ts
-init_esm_shims();
-import jwt from "jsonwebtoken";
-var authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ success: false, message: "Unauthorized" });
-    return;
-  }
-  const token = authHeader.split(" ")[1];
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = payload;
-    next();
-  } catch {
-    res.status(401).json({ success: false, message: "Invalid or expired token" });
-  }
-};
-var signToken = (payload) => {
-  return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d"
-  });
-};
-var verifyToken = (token) => {
-  return jwt.verify(token, process.env.JWT_SECRET);
-};
-
-// src/models/user.schema.ts
-init_esm_shims();
-import mongoose4, { Schema as Schema2 } from "mongoose";
-var contactEntrySchema = new Schema2(
-  {
-    userId: { type: Schema2.Types.ObjectId, ref: "User", required: true },
-    status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" }
-  },
-  { _id: false }
-);
-var userSchema = new Schema2(
-  {
-    name: { type: String, required: true, trim: true },
-    username: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    googleId: { type: String, required: true, unique: true },
-    lastSeen: { type: Date, default: Date.now },
-    contacts: { type: [contactEntrySchema], default: [] }
-  },
-  { timestamps: true }
-);
-var User = mongoose4.model("User", userSchema);
 
 // src/server.ts
 var clients = /* @__PURE__ */ new Map();
@@ -28062,28 +28077,11 @@ var createWebSocketServer = (port = 8080) => {
     });
   });
 };
-var handleConnectionRequest = (ws, req) => {
-  const url = new URL(req.url ?? "", `http://${req.headers.host}`);
-  const token = url.searchParams.get("token");
-  if (!token) {
-    ws.send(JSON.stringify({ type: "error", message: "Authentication token is required" }));
-    ws.close();
-    return { userId: null };
-  }
-  let userId;
-  try {
-    const payload = verifyToken(token);
-    userId = payload.userId;
-  } catch {
-    ws.send(JSON.stringify({ type: "error", message: "Invalid or expired token" }));
-    ws.close();
-    return { userId: null };
-  }
-  if (!clients.has(userId)) {
-    clients.set(userId, { ws, userId, verified: false, queue: null, consumerTag: null });
-  }
-  console.log("WebSocket user connected, userId:", userId);
-  return { userId };
+var handleConnectionRequest = (ws, _req) => {
+  const tempId = `pending_${Date.now()}_${Math.random()}`;
+  clients.set(tempId, { ws, userId: tempId, verified: false, queue: null, consumerTag: null });
+  console.log("WebSocket connection accepted (pending auth), tempId:", tempId);
+  return { userId: tempId };
 };
 var handleCloseConnectionRequest = async (_, userId) => {
   try {
@@ -28094,36 +28092,34 @@ var handleCloseConnectionRequest = async (_, userId) => {
         await channel.cancel(client2.consumerTag);
       }
       ;
-      const lastSeen = /* @__PURE__ */ new Date();
-      await User.findByIdAndUpdate(userId, { lastSeen });
-      broadCastToAllClients(JSON.stringify(
-        {
+      clients.delete(userId);
+      if (!userId.startsWith("pending_")) {
+        const lastSeen = /* @__PURE__ */ new Date();
+        await User.findByIdAndUpdate(userId, { lastSeen });
+        await broadcastToContacts(userId, JSON.stringify({
           type: "user_offline",
           userId,
           lastSeen: lastSeen.toISOString()
-        }
-      ));
-      clients.delete(userId);
+        }));
+      }
       console.info("Websocket user disconnected, userId:", userId);
     }
   } catch (error) {
     console.error("error in removing closing connection: ", error);
   }
 };
-var handleWebSocketMessage = async (ws, userId, data) => {
-  if (data.type !== "login" && !clients.get(userId)?.verified) {
-    ws.send(JSON.stringify(
-      {
-        type: "type_error",
-        message: "Unauthorized message type"
-      }
-    ));
+var handleWebSocketMessage = async (ws, tempId, data) => {
+  if (data.type === "login") {
+    await handleLoginMessage(ws, tempId, data);
     return;
   }
+  const authenticatedEntry = Array.from(clients.values()).find((c) => c.ws === ws && c.verified);
+  if (!authenticatedEntry) {
+    ws.send(JSON.stringify({ type: "type_error", message: "Unauthorized message type" }));
+    return;
+  }
+  const userId = authenticatedEntry.userId;
   switch (data.type) {
-    case "login":
-      await handleLoginMessage(ws, userId, data);
-      break;
     case "send_message":
       await handleSendMessage(ws, userId, data);
       break;
@@ -28138,12 +28134,7 @@ var handleWebSocketMessage = async (ws, userId, data) => {
       break;
     case "type_error":
     default:
-      ws.send(JSON.stringify(
-        {
-          type: "type_error",
-          message: "Invalid message type"
-        }
-      ));
+      ws.send(JSON.stringify({ type: "type_error", message: "Invalid message type" }));
       break;
   }
 };
@@ -28152,6 +28143,7 @@ var handleWebSocketMessage = async (ws, userId, data) => {
 init_esm_shims();
 var import_express3 = __toESM(require_express2());
 var import_cors = __toESM(require_lib4());
+import cookieParser from "cookie-parser";
 
 // src/routes/user.routes.ts
 init_esm_shims();
@@ -28225,6 +28217,14 @@ var generateUniqueUsername = async (displayName) => {
 
 // src/controller/google_auth.controller.ts
 var client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+var REFRESH_COOKIE = "lb_refresh";
+var COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  maxAge: 30 * 24 * 60 * 60 * 1e3
+  // 30 days in ms
+};
 var googleAuth = async (req, res) => {
   try {
     const { idToken } = req.body;
@@ -28254,10 +28254,13 @@ var googleAuth = async (req, res) => {
         console.info(`New user created: ${username} (${email})`);
       }
     }
-    const token = signToken({ userId: user._id.toString(), username: user.username });
+    const jwtPayload = { userId: user._id.toString(), username: user.username };
+    const accessToken = signToken(jwtPayload);
+    const refreshToken = signRefreshToken(jwtPayload);
+    res.cookie(REFRESH_COOKIE, refreshToken, COOKIE_OPTS);
     res.status(200).json({
       success: true,
-      token,
+      token: accessToken,
       user: {
         id: user._id,
         name: user.name,
@@ -28269,6 +28272,42 @@ var googleAuth = async (req, res) => {
     console.error("Error in googleAuth:", error);
     res.status(500).json({ success: false, message: "Google authentication failed" });
   }
+};
+var refreshAccessToken = async (req, res) => {
+  try {
+    const token = req.cookies?.[REFRESH_COOKIE];
+    if (!token) {
+      res.status(401).json({ success: false, message: "No refresh token" });
+      return;
+    }
+    const payload = verifyRefreshToken(token);
+    const user = await User.findById(payload.userId);
+    if (!user) {
+      res.status(401).json({ success: false, message: "User not found" });
+      return;
+    }
+    const jwtPayload = { userId: user._id.toString(), username: user.username };
+    const accessToken = signToken(jwtPayload);
+    const newRefreshToken = signRefreshToken(jwtPayload);
+    res.cookie(REFRESH_COOKIE, newRefreshToken, COOKIE_OPTS);
+    res.status(200).json({
+      success: true,
+      token: accessToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    console.error("Error in refreshAccessToken:", error);
+    res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
+  }
+};
+var logout = (_req, res) => {
+  res.clearCookie(REFRESH_COOKIE, { httpOnly: true, sameSite: "lax" });
+  res.status(200).json({ success: true, message: "Logged out" });
 };
 
 // src/controller/contact.controller.ts
@@ -28451,6 +28490,8 @@ var getContacts = async (req, res) => {
 // src/routes/user.routes.ts
 var userRouter = (0, import_express.Router)();
 userRouter.route("/google-auth").post(googleAuth);
+userRouter.route("/refresh").post(refreshAccessToken);
+userRouter.route("/logout").post(logout);
 userRouter.route("/me").get(authMiddleware, getMyProfile);
 userRouter.route("/profile/:username").get(getPublicProfile);
 userRouter.route("/profile-by-id/:id").get(authMiddleware, getProfileById);
@@ -28536,9 +28577,13 @@ var message_routes_default = messageRouter;
 
 // src/app.ts
 var app = (0, import_express3.default)();
-app.use((0, import_cors.default)());
+app.use((0, import_cors.default)({
+  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  credentials: true
+}));
 app.use(import_express3.default.json());
 app.use(import_express3.default.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use("/health", (_, res) => {
   res.status(200).json(
     {

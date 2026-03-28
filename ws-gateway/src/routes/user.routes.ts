@@ -1,11 +1,13 @@
 import { Router } from "express";
-import { googleAuth } from "../controller/google_auth.controller";
+import { googleAuth, refreshAccessToken, logout } from "../controller/google_auth.controller";
 import { getMyProfile, getPublicProfile, getProfileById, sendContactRequest, getContactRequests, acceptContactRequest, declineContactRequest, getContacts } from "../controller/contact.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
 const userRouter = Router();
 
 userRouter.route("/google-auth").post(googleAuth);
+userRouter.route("/refresh").post(refreshAccessToken);
+userRouter.route("/logout").post(logout);
 
 userRouter.route("/me").get(authMiddleware, getMyProfile);
 userRouter.route("/profile/:username").get(getPublicProfile);
