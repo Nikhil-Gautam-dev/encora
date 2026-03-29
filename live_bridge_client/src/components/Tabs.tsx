@@ -36,7 +36,9 @@ export default function Tabs() {
             {/* Header */}
             <header className="flex items-center justify-between bg-teal-700 dark:bg-teal-900 px-4 py-3 text-white shadow">
                 <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold tracking-wide">Encora</span>
+                    <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-white text-3xl font-bold shadow">
+                        <img src="encora-filled.svg" alt="" />
+                    </div>                    <span className="text-lg font-bold tracking-wide">Encora</span>
                 </div>
                 <div className="flex items-center gap-3">
                     {unreadCount > 0 && (

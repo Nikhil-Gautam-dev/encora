@@ -30,8 +30,8 @@ export default function Login() {
             <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 p-8 shadow-lg flex flex-col items-center gap-6 border border-gray-100 dark:border-gray-800">
                 {/* Brand */}
                 <div className="flex flex-col items-center gap-2">
-                    <div className="h-16 w-16 rounded-full bg-teal-600 flex items-center justify-center text-white text-3xl font-bold shadow">
-                        L
+                    <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center text-white text-3xl font-bold shadow">
+                        <img src="encora-filled.svg" alt="" />
                     </div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Encora</h1>
                     <p className="text-sm text-gray-400 dark:text-gray-500 text-center">Chat with friends, instantly.</p>
