@@ -33,7 +33,7 @@ export default function Login() {
                     <div className="h-16 w-16 rounded-full bg-teal-600 flex items-center justify-center text-white text-3xl font-bold shadow">
                         L
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">LiveBridge</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Encora</h1>
                     <p className="text-sm text-gray-400 dark:text-gray-500 text-center">Chat with friends, instantly.</p>
                 </div>
 

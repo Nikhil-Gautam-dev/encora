@@ -1,1 +1,1 @@
-export const MESSAGE_EXCHANGE = "live_bridge"
+export const MESSAGE_EXCHANGE = "encora"
