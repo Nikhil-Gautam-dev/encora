@@ -4,7 +4,7 @@ import cookieParser from "cookie-parser";
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173,https://live-bridge-lemon.vercel.app")
+const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173,https://encora-ashen.vercel.app")
     .split(",")
     .map(o => o.trim());
 
