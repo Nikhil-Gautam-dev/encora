@@ -1,5 +1,7 @@
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+// Load .env relative to this file — works regardless of PM2 working directory
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 import { createChannel, connection as rabbitConnection } from "./services/message_broker.service";
 import connectDB from "./services/database.service";
