@@ -12,6 +12,10 @@ export interface IUserDocument extends Document {
     googleId: string;
     lastSeen: Date;
     contacts: IContactEntry[];
+    publicKey?: string;
+    encryptedPrivateKey?: string;
+    keySalt?: string;
+    keyIv?: string;
 }
 
 const contactEntrySchema = new Schema<IContactEntry>(
@@ -29,7 +33,11 @@ const userSchema = new Schema<IUserDocument>(
         email: { type: String, required: true, unique: true, lowercase: true, trim: true },
         googleId: { type: String, required: true, unique: true },
         lastSeen: { type: Date, default: Date.now },
-        contacts: { type: [contactEntrySchema], default: [] }
+        contacts: { type: [contactEntrySchema], default: [] },
+        publicKey: { type: String },
+        encryptedPrivateKey: { type: String },
+        keySalt: { type: String },
+        keyIv: { type: String }
     },
     { timestamps: true }
 );

@@ -2,10 +2,10 @@ import { NavLink, Outlet, Link, useNavigate } from "react-router-dom";
 import { useWebSocket } from "../context/WebSocketContext";
 import { useAuth } from "../context/AuthContext";
 import { useState, useEffect, useRef } from "react";
-import { Bell, X } from "lucide-react";
+import { Bell } from "lucide-react";
 
 export default function Tabs() {
-    const { chatMessages, notifications, messageBanner, clearMessageBanner } = useWebSocket();
+    const { chatMessages, notifications } = useWebSocket();
     const { user, logout } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
     const [showMenu, setShowMenu] = useState(false);
@@ -29,12 +29,6 @@ export default function Tabs() {
     const handleLogout = () => {
         logout();
         navigate("/login");
-    };
-
-    const handleBannerClick = () => {
-        if (!messageBanner) return;
-        clearMessageBanner();
-        navigate(`/chat/${messageBanner.fromId}`);
     };
 
     return (
@@ -84,29 +78,6 @@ export default function Tabs() {
                     </div>
                 </div>
             </header>
-
-            {/* Cross-chat message banner */}
-            {messageBanner && (
-                <div
-                    onClick={handleBannerClick}
-                    className="flex items-center gap-3 px-4 py-2.5 bg-teal-600 dark:bg-teal-800 text-white cursor-pointer hover:bg-teal-500 dark:hover:bg-teal-700 transition animate-slide-down shadow-md"
-                >
-                    <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-teal-400 dark:bg-teal-600 font-bold text-sm">
-                        {messageBanner.name[0]?.toUpperCase() ?? "?"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold leading-tight">{messageBanner.name}</p>
-                        <p className="text-xs opacity-85 truncate leading-tight">{messageBanner.preview}</p>
-                    </div>
-                    <button
-                        onClick={e => { e.stopPropagation(); clearMessageBanner(); }}
-                        className="flex-shrink-0 p-1 rounded-full hover:bg-teal-500 dark:hover:bg-teal-700 transition"
-                        aria-label="Dismiss"
-                    >
-                        <X size={14} />
-                    </button>
-                </div>
-            )}
 
             {/* Content */}
             <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">

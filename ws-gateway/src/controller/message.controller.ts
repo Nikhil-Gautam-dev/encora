@@ -50,6 +50,7 @@ export const getLastMessages = async (req: Request, res: Response): Promise<void
                         $cond: [{ $eq: ["$from", myObjId] }, "$to", "$from"]
                     },
                     message: { $first: "$message" },
+                    iv: { $first: "$iv" },
                     from: { $first: "$from" },
                     createdAt: { $first: "$createdAt" },
                     status: { $first: "$status" }
@@ -58,10 +59,11 @@ export const getLastMessages = async (req: Request, res: Response): Promise<void
         ]);
 
         // Build a map: { contactId -> { message, from, createdAt, status } }
-        const lastMessages: Record<string, { message: string; from: string; createdAt: string; status: string }> = {};
+        const lastMessages: Record<string, { message: string; iv?: string; from: string; createdAt: string; status: string }> = {};
         for (const r of results) {
             lastMessages[r._id.toString()] = {
                 message: r.message,
+                iv: r.iv,
                 from: r.from.toString(),
                 createdAt: r.createdAt,
                 status: r.status

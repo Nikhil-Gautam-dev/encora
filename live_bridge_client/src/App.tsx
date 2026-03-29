@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { WebSocketProvider } from "./context/WebSocketContext";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
+import { CryptoProvider, useCrypto } from "./context/CryptoContext";
 import Login from "./pages/Login";
 import Tabs from "./components/Tabs";
 import Chats from "./pages/Chats";
@@ -11,6 +12,7 @@ import ChatScreen from "./pages/ChatScreen";
 import Profile from "./pages/Profile";
 import PublicProfile from "./pages/PublicProfile";
 import Notifications from "./pages/Notifications";
+import PinModal from "./components/PinModal";
 
 function AppRoutes() {
     const { isAuthenticated, isLoading, user, token } = useAuth();
@@ -33,7 +35,27 @@ function AppRoutes() {
     }
 
     return (
-        <WebSocketProvider userId={user!.id} token={token!}>
+        <CryptoProvider>
+            <CryptoGate userId={user!.id} token={token!} />
+        </CryptoProvider>
+    );
+}
+
+function CryptoGate({ userId, token }: { userId: string; token: string }) {
+    const { isReady, needsPin } = useCrypto();
+
+    if (needsPin) return <PinModal />;
+
+    if (!isReady) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-950">
+                <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    return (
+        <WebSocketProvider userId={userId} token={token}>
             <Routes>
                 <Route path="/" element={<Tabs />}>
                     <Route index element={<Navigate to="/chats" />} />

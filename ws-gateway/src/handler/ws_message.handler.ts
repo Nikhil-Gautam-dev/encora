@@ -119,59 +119,58 @@ export const handleSendMessage = async (ws: WebSocket, userId: string, data: IWe
     try {
         const to = data.to;
         const msg = data.message;
-
+        const iv = data.iv as string | undefined;
         if (!to || !msg) return;
 
-        // Persist message to MongoDB
-        const savedMessage = await Message.create({
-            from: new mongoose.Types.ObjectId(userId),
-            to: new mongoose.Types.ObjectId(to),
-            message: msg,
-            status: "sent"
-        });
-
-        const messageId = savedMessage._id.toString();
-
-        // If recipient is online, mark as delivered immediately
+        // Generate ID upfront — no DB round-trip needed before acking sender
+        const messageId = new mongoose.Types.ObjectId();
         const recipientOnline = clients.has(to);
-        let finalStatus: "sent" | "delivered" = "sent";
+        const finalStatus: "sent" | "delivered" = recipientOnline ? "delivered" : "sent";
+        const now = new Date();
 
-        if (recipientOnline) {
-            await Message.findByIdAndUpdate(messageId, { status: "delivered" });
-            finalStatus = "delivered";
-        }
-
-        // Confirm to sender with messageId and status
+        // Ack sender immediately — zero DB wait
         ws.send(JSON.stringify({
             type: "message_sent_ack",
-            messageId,
+            messageId: messageId.toString(),
             tempId: data.tempId,
             status: finalStatus
         }));
 
-        // Publish to recipient's queue (via RabbitMQ)
+        // Deliver to recipient via RabbitMQ immediately (include iv for decryption)
         channel.publish(MESSAGE_EXCHANGE, to, Buffer.from(JSON.stringify({
-            messageId,
+            messageId: messageId.toString(),
             from: userId,
             message: msg,
+            iv,
             status: finalStatus,
-            createdAt: savedMessage.createdAt
-        })))
+            createdAt: now.toISOString()
+        })));
 
-        // If recipient is online, immediately send delivery receipt to sender
+        // Send delivery receipt to sender if recipient is online
         if (recipientOnline) {
             ws.send(JSON.stringify({
                 type: "message_delivered" as WebSocketMessageType,
-                messageIds: [messageId]
+                messageIds: [messageId.toString()]
             }));
         }
+
+        // Persist to MongoDB in the background — sender never waits for this
+        Message.create({
+            _id: messageId,
+            from: new mongoose.Types.ObjectId(userId),
+            to: new mongoose.Types.ObjectId(to),
+            message: msg,
+            iv,
+            status: finalStatus,
+            createdAt: now
+        }).catch(err => console.error("[persist] Failed to save message:", err));
+
     } catch (error) {
         console.error("error in handling send_message: ", error);
         ws.send(JSON.stringify({
             type: "send_message_error" as WebSocketMessageType,
             message: "Internal Server Error"
-        }))
-        return;
+        }));
     }
 }
 
@@ -180,13 +179,13 @@ export const handleMessageRead = async (_ws: WebSocket, _userId: string, data: I
         const { messageId } = data;
         if (!messageId) return;
 
-        const message = await Message.findByIdAndUpdate(
-            messageId,
-            { status: "read" },
-            { new: true }
-        );
-
+        // Fetch only the `from` field — don't need the rest of the document
+        const message = await Message.findById(messageId).select("from").lean();
         if (!message) return;
+
+        // Update status in background — no need to block on this
+        Message.updateOne({ _id: messageId }, { $set: { status: "read" } })
+            .catch(err => console.error("[persist] Failed to update read status:", err));
 
         const senderId = message.from.toString();
         const senderClient = clients.get(senderId);

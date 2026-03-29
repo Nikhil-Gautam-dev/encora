@@ -6,6 +6,7 @@ export interface IMessageDocument extends Document {
     from: mongoose.Types.ObjectId;
     to: mongoose.Types.ObjectId;
     message: string;
+    iv?: string;
     status: MessageStatus;
     createdAt: Date;
 }
@@ -15,6 +16,7 @@ const messageSchema = new Schema<IMessageDocument>(
         from: { type: Schema.Types.ObjectId, ref: "User", required: true },
         to: { type: Schema.Types.ObjectId, ref: "User", required: true },
         message: { type: String, required: true, trim: true },
+        iv: { type: String },
         status: { type: String, enum: ["sent", "delivered", "read"], default: "sent" }
     },
     { timestamps: true }

@@ -1,9 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useWebSocket } from "../context/WebSocketContext";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { api } from "../services/api";
 import { notify } from "../utils/toast";
 import { format, isToday, isYesterday } from "date-fns";
+import { useCrypto } from "../context/CryptoContext";
 
 interface Contact {
     id: string;
@@ -14,6 +15,7 @@ interface Contact {
 
 interface LastMessageEntry {
     message: string;
+    iv?: string;
     from: string;
     createdAt: string;
     status: string;
@@ -45,8 +47,10 @@ const extractUsername = (input: string): string => {
 
 export default function Chats() {
     const { userId, chatMessages, activeUsers, onContactsRefresh, contactRequests, registerContactNames } = useWebSocket();
+    const { decryptFromContact } = useCrypto();
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [lastMessages, setLastMessages] = useState<Record<string, LastMessageEntry>>({});
+    const [decryptedPreviews, setDecryptedPreviews] = useState<Record<string, string>>({});
     const [showAddModal, setShowAddModal] = useState(false);
     const [addProfileUrl, setAddProfileUrl] = useState("");
     const [addLoading, setAddLoading] = useState(false);
@@ -78,6 +82,29 @@ export default function Chats() {
         fetchLastMessages();
     }, [onContactsRefresh]);
 
+    // Decrypt encrypted message previews for the contact list
+    const decryptPreviews = useCallback(async (contactList: Contact[]) => {
+        const updates: Record<string, string> = {};
+        await Promise.all(contactList.map(async (contact) => {
+            // Prefer live WS message, fall back to API snapshot
+            const liveMsgs = chatMessages.filter(m => m.from === contact.id || m.to === contact.id);
+            const last = liveMsgs.length > 0 ? liveMsgs[liveMsgs.length - 1] : null;
+            if (last && last.iv) {
+                updates[contact.id] = await decryptFromContact(last.message, last.iv, contact.id);
+                return;
+            }
+            const snap = lastMessages[contact.id];
+            if (snap && snap.iv) {
+                updates[contact.id] = await decryptFromContact(snap.message, snap.iv, contact.id);
+            }
+        }));
+        setDecryptedPreviews(prev => ({ ...prev, ...updates }));
+    }, [chatMessages, lastMessages, decryptFromContact]);
+
+    useEffect(() => {
+        if (contacts.length > 0) decryptPreviews(contacts);
+    }, [contacts, chatMessages, lastMessages, decryptPreviews]);
+
     useEffect(() => {
         if (showAddModal) setTimeout(() => addInputRef.current?.focus(), 100);
     }, [showAddModal]);
@@ -106,19 +133,17 @@ export default function Chats() {
         const liveMsgs = chatMessages.filter(m => m.from === contactId || m.to === contactId);
         if (liveMsgs.length > 0) {
             const last = liveMsgs[liveMsgs.length - 1];
-            return {
-                text: last.message,
-                date: last.createdAt ? formatMsgDate(last.createdAt) : "",
-                isMine: last.type === "send_message"
-            };
+            const text = last.iv
+                ? (decryptedPreviews[contactId] ?? "🔒 Encrypted message")
+                : last.message;
+            return { text, date: last.createdAt ? formatMsgDate(last.createdAt) : "", isMine: last.type === "send_message" };
         }
         const snap = lastMessages[contactId];
         if (snap) {
-            return {
-                text: snap.message,
-                date: formatMsgDate(snap.createdAt),
-                isMine: snap.from === userId
-            };
+            const text = snap.iv
+                ? (decryptedPreviews[contactId] ?? "🔒 Encrypted message")
+                : snap.message;
+            return { text, date: formatMsgDate(snap.createdAt), isMine: snap.from === userId };
         }
         return null;
     };

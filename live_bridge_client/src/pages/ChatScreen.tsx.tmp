@@ -1,10 +1,3 @@
-import { useParams, useNavigate } from "react-router-dom";
-import { useWebSocket } from "../context/WebSocketContext";
-import { useCrypto } from "../context/CryptoContext";
-import { useEffect, useRef, useState } from "react";
-import { api } from "../services/api";
-import { format, isToday, isYesterday } from "date-fns";
-import { ArrowLeft, Send } from "lucide-react";
 
 interface DisplayMessage {
     id: string;
@@ -37,44 +30,26 @@ function formatLastSeen(ls: string | undefined, isOnline: boolean): string {
 }
 
 function TickIcon({ status }: { status: "sent" | "delivered" | "read" }) {
-    if (status === "sent") return <span className="text-gray-300 text-xs ml-1">✓</span>;
-    if (status === "delivered") return <span className="text-gray-300 text-xs ml-1">✓✓</span>;
+    if (status === "sent") {
+        return <span className="text-gray-300 text-xs ml-1">✓</span>;
+    }
+    if (status === "delivered") {
+        return <span className="text-gray-300 text-xs ml-1">✓✓</span>;
+    }
     return <span className="text-teal-300 text-xs ml-1">✓✓</span>;
 }
 
 export default function ChatScreen() {
-    const { sendMessage, chatMessages, readMessage, activeUsers, lastSeen, userTyping, messageBanner, clearMessageBanner } = useWebSocket();
-    const { encryptForContact, decryptFromContact } = useCrypto();
+    const { sendMessage, chatMessages, readMessage, activeUsers, lastSeen, userTyping } = useWebSocket();
     const [inputMessage, setInputMessage] = useState("");
     const [displayMessages, setDisplayMessages] = useState<DisplayMessage[]>([]);
     const [isTyping, setIsTyping] = useState(false);
     const [contactName, setContactName] = useState("");
-    const [bannerPreview, setBannerPreview] = useState<string>("");
     const { contactId } = useParams<{ contactId: string }>();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
 
-    // Track which IDs have been merged to avoid duplicates
-    const processedIds = useRef(new Set<string>());
-
-    // Decrypt banner preview when an encrypted cross-chat message arrives
-    useEffect(() => {
-        if (!messageBanner?.iv || !messageBanner.ciphertext) {
-            setBannerPreview(messageBanner?.preview ?? "");
-            return;
-        }
-        decryptFromContact(messageBanner.ciphertext, messageBanner.iv, messageBanner.fromId)
-            .then(setBannerPreview)
-            .catch(() => setBannerPreview("Encrypted message"));
-    }, [messageBanner, decryptFromContact]);
-
-    // Reset when switching contacts
-    useEffect(() => {
-        processedIds.current = new Set();
-        setDisplayMessages([]);
-    }, [contactId]);
-
-    // Load history from API and decrypt
+    // Load message history from API
     useEffect(() => {
         if (!contactId) return;
 
@@ -83,64 +58,59 @@ export default function ChatScreen() {
             .catch(() => setContactName(contactId));
 
         api.get<{ messages: any[] }>(`/messages/${contactId}`)
-            .then(async res => {
-                const history: DisplayMessage[] = await Promise.all(
-                    res.messages.map(async m => {
-                        const isMine = m.from !== contactId;
-                        let message = m.message;
-                        if (m.iv) {
-                            // ECDH shared key is symmetric — same key for both sides
-                            message = await decryptFromContact(m.message, m.iv, contactId);
-                        }
-                        processedIds.current.add(m._id);
-                        return {
-                            id: m._id,
-                            messageId: m._id,
-                            type: (isMine ? "send_message" : "receive_message") as "send_message" | "receive_message",
-                            from: m.from,
-                            to: m.to,
-                            message,
-                            status: m.status,
-                            createdAt: m.createdAt
-                        };
-                    })
-                );
+            .then(res => {
+                const history: DisplayMessage[] = res.messages.map(m => ({
+                    id: m._id,
+                    messageId: m._id,
+                    type: m.from === contactId ? "receive_message" : "send_message",
+                    from: m.from,
+                    to: m.to,
+                    message: m.message,
+                    status: m.status,
+                    createdAt: m.createdAt
+                }));
                 setDisplayMessages(history);
             })
             .catch(() => {});
     }, [contactId]);
 
-    // Merge new live WS messages and decrypt them
+    // Merge incoming live WS messages
     useEffect(() => {
         if (!contactId) return;
+
         const incoming = chatMessages.filter(m => m.from === contactId || m.to === contactId);
-        const newOnes = incoming.filter(m => !processedIds.current.has(m.messageId || m.id));
-        if (newOnes.length === 0) return;
 
-        newOnes.forEach(m => processedIds.current.add(m.messageId || m.id));
+        setDisplayMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.messageId || m.id));
+            const newOnes = incoming.filter(m => !existingIds.has(m.messageId || m.id));
+            if (newOnes.length === 0) return prev;
+            return [...prev, ...newOnes.map(m => ({
+                id: m.id,
+                messageId: m.messageId,
+                type: m.type,
+                from: m.from,
+                to: m.to,
+                message: m.message,
+                status: m.status,
+                createdAt: m.createdAt
+            }))];
+        });
 
-        (async () => {
-            const decrypted = await Promise.all(newOnes.map(async m => {
-                let message = m.message;
-                if (m.iv) {
-                    message = await decryptFromContact(m.message, m.iv, contactId);
-                }
-                return {
-                    id: m.id,
-                    messageId: m.messageId,
-                    type: m.type,
-                    from: m.from,
-                    to: m.to,
-                    message,
-                    status: m.status,
-                    createdAt: m.createdAt
-                };
-            }));
-            setDisplayMessages(prev => [...prev, ...decrypted]);
-        })();
+        // Send read receipts for unread incoming messages
+        const unread = chatMessages.filter(m => m.from === contactId && m.status !== "read");
+        unread.forEach(m => {
+            if (m.messageId) {
+                sendMessage(JSON.stringify({ type: "message_read", messageId: m.messageId }));
+            }
+        });
+
+        if (unread.length > 0) {
+            readMessage(chatMessages.map(m => m.from === contactId ? { ...m, status: "read" } : m));
+        }
+
     }, [chatMessages, contactId]);
 
-    // Sync delivery/read status updates from WS
+    // Update receipt status from context
     useEffect(() => {
         setDisplayMessages(prev => prev.map(m => {
             const ctx = chatMessages.find(c => c.messageId && c.messageId === m.messageId);
@@ -148,20 +118,6 @@ export default function ChatScreen() {
             return m;
         }));
     }, [chatMessages]);
-
-    // Send read receipts for unread received messages
-    useEffect(() => {
-        if (!contactId) return;
-        const unread = chatMessages.filter(m => m.from === contactId && m.status !== "read");
-        unread.forEach(m => {
-            if (m.messageId) {
-                sendMessage(JSON.stringify({ type: "message_read", messageId: m.messageId }));
-            }
-        });
-        if (unread.length > 0) {
-            readMessage(chatMessages.map(m => m.from === contactId ? { ...m, status: "read" } : m));
-        }
-    }, [chatMessages, contactId]);
 
     useEffect(() => {
         if (userTyping.userId === contactId) setIsTyping(userTyping.status);
@@ -171,34 +127,29 @@ export default function ChatScreen() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [displayMessages]);
 
-    const handleSend = async () => {
+    const handleSend = () => {
         if (!inputMessage.trim() || !contactId) return;
 
         const tempId = Date.now().toString();
-        const plaintext = inputMessage;
-
-        // Optimistically show plaintext before encryption completes
-        const optimistic: DisplayMessage = {
+        const newMsg: DisplayMessage = {
             id: tempId,
             type: "send_message",
             from: "",
             to: contactId,
-            message: plaintext,
+            message: inputMessage,
             status: "sent",
             createdAt: new Date().toISOString()
         };
-        setDisplayMessages(prev => [...prev, optimistic]);
-        processedIds.current.add(tempId);
-        setInputMessage("");
 
-        try {
-            const { ciphertext, iv } = await encryptForContact(plaintext, contactId);
-            sendMessage(JSON.stringify({ type: "send_message", to: contactId, message: ciphertext, iv, tempId }));
-        } catch (err) {
-            console.error("Encryption failed:", err);
-            setDisplayMessages(prev => prev.filter(m => m.id !== tempId));
-            processedIds.current.delete(tempId);
-        }
+        sendMessage(JSON.stringify({
+            type: "send_message",
+            to: contactId,
+            message: inputMessage,
+            tempId
+        }));
+
+        setDisplayMessages(prev => [...prev, newMsg]);
+        setInputMessage("");
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -225,29 +176,6 @@ export default function ChatScreen() {
                     </p>
                 </div>
             </div>
-
-            {/* Cross-chat message banner */}
-            {messageBanner && (
-                <div
-                    onClick={() => { clearMessageBanner(); navigate(`/chat/${messageBanner.fromId}`); }}
-                    className="flex items-center gap-3 px-4 py-2.5 bg-teal-600 dark:bg-teal-800 text-white cursor-pointer hover:bg-teal-500 dark:hover:bg-teal-700 transition animate-slide-down shadow-md z-10"
-                >
-                    <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-teal-400 dark:bg-teal-600 font-bold text-sm">
-                        {messageBanner.name[0]?.toUpperCase() ?? "?"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold leading-tight">{messageBanner.name}</p>
-                        <p className="text-xs opacity-85 truncate leading-tight">{bannerPreview}</p>
-                    </div>
-                    <button
-                        onClick={e => { e.stopPropagation(); clearMessageBanner(); }}
-                        className="flex-shrink-0 p-1 rounded-full hover:bg-teal-500 dark:hover:bg-teal-700 transition"
-                        aria-label="Dismiss"
-                    >
-                        ✕
-                    </button>
-                </div>
-            )}
 
             {/* Messages */}
             <div
@@ -299,3 +227,4 @@ export default function ChatScreen() {
         </div>
     );
 }
+

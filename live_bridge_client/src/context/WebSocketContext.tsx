@@ -8,6 +8,7 @@ export interface IChatMessage {
     to: string;
     from: string;
     message: string;
+    iv?: string;
     status: "sent" | "delivered" | "read";
     createdAt?: string;
 }
@@ -28,6 +29,8 @@ export interface IMessageBanner {
     fromId: string;
     name: string;
     preview: string;
+    ciphertext?: string;
+    iv?: string;
 }
 
 type WebSocketContextType = {
@@ -220,16 +223,19 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
                                 to: userId,
                                 from: data.from,
                                 message: data.message,
+                                iv: data.iv,
                                 status: data.status || "delivered",
                                 createdAt: data.createdAt
                             };
-                            if (!location.href.includes("chat/" + data.from)) {
+                            // Only show the cross-chat banner when actively inside a chat screen
+                            // (not on the contacts list, profile, notifications, etc.)
+                            const isInSomeChat = location.href.includes("/chat/");
+                            const isInSenderChat = location.href.includes("/chat/" + data.from);
+                            if (isInSomeChat && !isInSenderChat) {
                                 const name = contactNamesRef.current.get(data.from) || "New message";
-                                const preview = data.message?.length > 50
-                                    ? data.message.slice(0, 47) + "…"
-                                    : data.message || "";
+                                const preview = data.iv ? "" : (data.message?.length > 50 ? data.message.slice(0, 47) + "…" : data.message || "");
                                 if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
-                                setMessageBanner({ fromId: data.from, name, preview });
+                                setMessageBanner({ fromId: data.from, name, preview, ciphertext: data.iv ? data.message : undefined, iv: data.iv });
                                 bannerTimerRef.current = setTimeout(() => setMessageBanner(null), 4000);
                             }
                             setChatMessages(prev => [...prev, chatMsg]);

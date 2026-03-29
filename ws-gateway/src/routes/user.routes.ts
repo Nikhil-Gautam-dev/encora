@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { googleAuth, refreshAccessToken, logout } from "../controller/google_auth.controller";
 import { getMyProfile, getPublicProfile, getProfileById, sendContactRequest, getContactRequests, acceptContactRequest, declineContactRequest, getContacts } from "../controller/contact.controller";
+import { uploadKeys, checkKeys, getMyKeys, getContactPublicKey } from "../controller/crypto.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
 const userRouter = Router();
@@ -18,5 +19,10 @@ userRouter.route("/contacts/request").post(authMiddleware, sendContactRequest);
 userRouter.route("/contacts/requests").get(authMiddleware, getContactRequests);
 userRouter.route("/contacts/accept").post(authMiddleware, acceptContactRequest);
 userRouter.route("/contacts/decline").post(authMiddleware, declineContactRequest);
+
+userRouter.route("/keys").put(authMiddleware, uploadKeys);
+userRouter.route("/keys/check").get(authMiddleware, checkKeys);
+userRouter.route("/keys").get(authMiddleware, getMyKeys);
+userRouter.route("/keys/contact/:userId").get(authMiddleware, getContactPublicKey);
 
 export default userRouter;
