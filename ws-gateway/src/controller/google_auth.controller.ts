@@ -8,10 +8,11 @@ import { verifyRefreshToken } from "../middleware/auth.middleware";
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const REFRESH_COOKIE = "lb_refresh";
+const isProd = process.env.NODE_ENV === "production";
 const COOKIE_OPTS = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
+    secure: isProd,
+    sameSite: (isProd ? "none" : "lax") as "none" | "lax",
     maxAge: 30 * 24 * 60 * 60 * 1000  // 30 days in ms
 };
 
