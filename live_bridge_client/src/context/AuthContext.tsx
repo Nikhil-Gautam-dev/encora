@@ -19,39 +19,48 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const REFRESH_KEY = "encora_refresh";
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const applyAuth = useCallback((newToken: string, newUser: AuthUser) => {
+    const applyAuth = useCallback((newToken: string, newUser: AuthUser, refreshToken?: string) => {
         setAccessToken(newToken);
         setToken(newToken);
         setUser(newUser);
+        if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
     }, []);
 
     const clearAuth = useCallback(() => {
         setAccessToken(null);
         setToken(null);
         setUser(null);
+        localStorage.removeItem(REFRESH_KEY);
     }, []);
 
-    // Silent refresh on page load — uses httpOnly refresh token cookie
+    // Silent refresh on page load using stored refresh token
     useEffect(() => {
         const silentRefresh = async () => {
-            // Clean up old localStorage tokens from previous auth scheme
-            localStorage.removeItem("lb_token");
-            localStorage.removeItem("lb_user");
+            const storedRefresh = localStorage.getItem(REFRESH_KEY);
+            if (!storedRefresh) { setIsLoading(false); return; }
             try {
                 const res = await fetch(
                     `${import.meta.env.VITE_API_URL || "http://localhost:3001/api"}/user/refresh`,
-                    { method: "POST", credentials: "include" }
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ refreshToken: storedRefresh })
+                    }
                 );
                 if (res.ok) {
                     const data = await res.json();
-                    applyAuth(data.token, data.user);
+                    applyAuth(data.token, data.user, data.refreshToken);
+                } else {
+                    localStorage.removeItem(REFRESH_KEY);
                 }
-            } catch { /* no refresh token or network error — stay logged out */ }
+            } catch { localStorage.removeItem(REFRESH_KEY); }
             finally { setIsLoading(false); }
         };
         silentRefresh();
@@ -60,8 +69,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Keep user state in sync when api.ts refreshes the token automatically
     useEffect(() => {
         const onRefreshed = (e: Event) => {
-            const { token: t, user: u } = (e as CustomEvent).detail;
-            if (t && u) applyAuth(t, u);
+            const { token: t, user: u, refreshToken: rt } = (e as CustomEvent).detail;
+            if (t && u) applyAuth(t, u, rt);
         };
         const onExpired = () => clearAuth();
         window.addEventListener("lb:token-refreshed", onRefreshed);
@@ -73,8 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [applyAuth, clearAuth]);
 
     const googleLogin = async (idToken: string) => {
-        const res = await api.post<{ token: string; user: AuthUser }>("/user/google-auth", { idToken });
-        applyAuth(res.token, res.user);
+        const res = await api.post<{ token: string; refreshToken: string; user: AuthUser }>("/user/google-auth", { idToken });
+        applyAuth(res.token, res.user, res.refreshToken);
     };
 
     const logout = async () => {

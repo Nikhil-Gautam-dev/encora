@@ -11,20 +11,24 @@ let _refreshPromise: Promise<string | null> | null = null;
 
 const tryRefresh = async (): Promise<string | null> => {
     if (_refreshPromise) return _refreshPromise;
-    _refreshPromise = fetch(`${BASE_URL}/user/refresh`, {
-        method: "POST",
-        credentials: "include"
-    })
-        .then(async r => {
-            if (!r.ok) { _accessToken = null; return null; }
+    _refreshPromise = (async () => {
+        const storedRefresh = localStorage.getItem("encora_refresh");
+        if (!storedRefresh) { _accessToken = null; return null; }
+        try {
+            const r = await fetch(`${BASE_URL}/user/refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refreshToken: storedRefresh })
+            });
+            if (!r.ok) { _accessToken = null; localStorage.removeItem("encora_refresh"); return null; }
             const data = await r.json();
             _accessToken = data.token ?? null;
-            // Notify AuthContext so user state stays in sync
+            if (data.refreshToken) localStorage.setItem("encora_refresh", data.refreshToken);
             window.dispatchEvent(new CustomEvent("lb:token-refreshed", { detail: data }));
             return _accessToken;
-        })
-        .catch(() => { _accessToken = null; return null; })
-        .finally(() => { _refreshPromise = null; });
+        } catch { _accessToken = null; return null; }
+        finally { _refreshPromise = null; }
+    })();
     return _refreshPromise;
 };
 

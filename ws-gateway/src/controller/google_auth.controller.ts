@@ -7,15 +7,6 @@ import { verifyRefreshToken } from "../middleware/auth.middleware";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const REFRESH_COOKIE = "lb_refresh";
-const isProd = process.env.NODE_ENV === "production";
-const COOKIE_OPTS = {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: (isProd ? "none" : "lax") as "none" | "lax",
-    maxAge: 30 * 24 * 60 * 60 * 1000  // 30 days in ms
-};
-
 export const googleAuth = async (req: Request, res: Response): Promise<void> => {
     try {
         const { idToken } = req.body;
@@ -56,11 +47,10 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
         const accessToken = signToken(jwtPayload);
         const refreshToken = signRefreshToken(jwtPayload);
 
-        res.cookie(REFRESH_COOKIE, refreshToken, COOKIE_OPTS);
-
         res.status(200).json({
             success: true,
             token: accessToken,
+            refreshToken,
             user: {
                 id: user._id,
                 name: user.name,
@@ -76,7 +66,8 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
 
 export const refreshAccessToken = async (req: Request, res: Response): Promise<void> => {
     try {
-        const token = req.cookies?.[REFRESH_COOKIE];
+        // Accept token from body (cross-domain) or cookie (same-domain fallback)
+        const token = req.body?.refreshToken || req.cookies?.["lb_refresh"];
         if (!token) {
             res.status(401).json({ success: false, message: "No refresh token" });
             return;
@@ -94,12 +85,10 @@ export const refreshAccessToken = async (req: Request, res: Response): Promise<v
         const accessToken = signToken(jwtPayload);
         const newRefreshToken = signRefreshToken(jwtPayload);
 
-        // Rotate the refresh token
-        res.cookie(REFRESH_COOKIE, newRefreshToken, COOKIE_OPTS);
-
         res.status(200).json({
             success: true,
             token: accessToken,
+            refreshToken: newRefreshToken,
             user: {
                 id: user._id,
                 name: user.name,
@@ -114,6 +103,5 @@ export const refreshAccessToken = async (req: Request, res: Response): Promise<v
 };
 
 export const logout = (_req: Request, res: Response): void => {
-    res.clearCookie(REFRESH_COOKIE, { httpOnly: true, sameSite: "lax" });
     res.status(200).json({ success: true, message: "Logged out" });
 };
