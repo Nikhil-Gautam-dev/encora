@@ -3,6 +3,9 @@ import path from "path";
 // Load .env relative to this file — works regardless of PM2 working directory
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
+import { validateEnv } from "./utils/env.validator";
+validateEnv();
+
 import { createChannel, connection as rabbitConnection } from "./services/message_broker.service";
 import connectDB from "./services/database.service";
 import { createWebSocketServer, clients, wss } from "./server";

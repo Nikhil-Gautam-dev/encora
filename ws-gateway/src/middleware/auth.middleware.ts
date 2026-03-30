@@ -33,17 +33,17 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
     }
 };
 
-/** Short-lived access token (15 min) */
+/** Short-lived access token */
 export const signToken = (payload: JwtPayload): string => {
     return jwt.sign(payload, process.env.JWT_SECRET!, {
-        expiresIn: "15m"
+        expiresIn: process.env.JWT_EXPIRES_IN || "15m"
     } as jwt.SignOptions);
 };
 
-/** Long-lived refresh token (30 days) stored in httpOnly cookie */
+/** Long-lived refresh token */
 export const signRefreshToken = (payload: JwtPayload): string => {
     return jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, {
-        expiresIn: "30d"
+        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d"
     } as jwt.SignOptions);
 };
 

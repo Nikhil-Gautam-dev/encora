@@ -8,6 +8,8 @@ const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173,https:/
     .split(",")
     .map(o => o.trim());
 
+console.log("allowed origins: ", allowedOrigins)
+
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
