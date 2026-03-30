@@ -3,11 +3,12 @@ import { googleAuth, refreshAccessToken, logout } from "../controller/google_aut
 import { getMyProfile, getPublicProfile, getProfileById, sendContactRequest, getContactRequests, acceptContactRequest, declineContactRequest, getContacts } from "../controller/contact.controller";
 import { uploadKeys, checkKeys, getMyKeys, getContactPublicKey } from "../controller/crypto.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
+import { authLimiter } from "../app";
 
 const userRouter = Router();
 
-userRouter.route("/google-auth").post(googleAuth);
-userRouter.route("/refresh").post(refreshAccessToken);
+userRouter.route("/google-auth").post(authLimiter, googleAuth);
+userRouter.route("/refresh").post(authLimiter, refreshAccessToken);
 userRouter.route("/logout").post(logout);
 
 userRouter.route("/me").get(authMiddleware, getMyProfile);

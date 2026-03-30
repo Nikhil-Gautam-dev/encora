@@ -12,7 +12,7 @@ export let wss: WebSocketServer;
 const PING_INTERVAL_MS = 30_000;  // send ping every 30s
 
 export const createWebSocketServer = (port: number = 8080) => {
-    wss = new WebSocketServer({ port });
+    wss = new WebSocketServer({ port, maxPayload: 64 * 1024 }); // 64 KB max per WS message
 
     // Server-side heartbeat: ping every client and terminate those that go silent
     const heartbeatInterval = setInterval(() => {
