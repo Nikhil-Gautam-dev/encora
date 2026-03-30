@@ -53,7 +53,11 @@ export const createWebSocketServer = (port: number = 8080) => {
         });
 
         ws.on("close", async () => {
-            await handleCloseConnectionRequest(ws, userId);
+            // Look up the real userId by WS reference — the tempId may have been
+            // replaced with the real userId after successful login
+            const entry = Array.from(clients.values()).find(c => c.ws === ws);
+            const resolvedId = entry?.userId ?? userId;
+            await handleCloseConnectionRequest(ws, resolvedId);
         });
     });
 };
