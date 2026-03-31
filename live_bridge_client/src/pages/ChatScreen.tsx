@@ -65,7 +65,7 @@ export default function ChatScreen() {
         }
         decryptFromContact(messageBanner.ciphertext, messageBanner.iv, messageBanner.fromId)
             .then(setBannerPreview)
-            .catch(() => setBannerPreview("Encrypted message"));
+            .catch(() => setBannerPreview("loading..."));
     }, [messageBanner, decryptFromContact]);
 
     // Reset when switching contacts
@@ -107,7 +107,7 @@ export default function ChatScreen() {
                 );
                 setDisplayMessages(history);
             })
-            .catch(() => {});
+            .catch(() => { });
     }, [contactId]);
 
     // Merge new live WS messages and decrypt them
@@ -263,11 +263,10 @@ export default function ChatScreen() {
                     const isSent = msg.type === "send_message";
                     return (
                         <div key={msg.id || index} className={`flex ${isSent ? "justify-end" : "justify-start"}`}>
-                            <div className={`relative max-w-xs px-3 py-2 rounded-2xl shadow text-sm ${
-                                isSent
+                            <div className={`relative max-w-xs px-3 py-2 rounded-2xl shadow text-sm ${isSent
                                     ? "bg-teal-500 dark:bg-teal-700 text-white rounded-br-sm"
                                     : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm"
-                            }`}>
+                                }`}>
                                 <span>{msg.message}</span>
                                 <div className={`flex items-center justify-end gap-0.5 mt-0.5 ${isSent ? "text-teal-100" : "text-gray-400 dark:text-gray-500"}`}>
                                     <span className="text-[10px]">{formatMsgTime(msg.createdAt)}</span>

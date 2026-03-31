@@ -39,7 +39,7 @@ const extractUsername = (input: string): string => {
         const parts = url.pathname.split("/").filter(Boolean);
         const uIdx = parts.indexOf("u");
         if (uIdx !== -1 && parts[uIdx + 1]) return parts[uIdx + 1];
-    } catch {}
+    } catch { }
     const match = trimmed.match(/\/u\/([^/?#\s]+)/);
     if (match) return match[1];
     return trimmed;
@@ -134,14 +134,14 @@ export default function Chats() {
         if (liveMsgs.length > 0) {
             const last = liveMsgs[liveMsgs.length - 1];
             const text = last.iv
-                ? (decryptedPreviews[contactId] ?? "🔒 Encrypted message")
+                ? (decryptedPreviews[contactId] ?? "loading...")
                 : last.message;
             return { text, date: last.createdAt ? formatMsgDate(last.createdAt) : "", isMine: last.type === "send_message" };
         }
         const snap = lastMessages[contactId];
         if (snap) {
             const text = snap.iv
-                ? (decryptedPreviews[contactId] ?? "🔒 Encrypted message")
+                ? (decryptedPreviews[contactId] ?? "loading...")
                 : snap.message;
             return { text, date: formatMsgDate(snap.createdAt), isMine: snap.from === userId };
         }
