@@ -3,7 +3,7 @@ import { googleAuth, refreshAccessToken, logout } from "../controller/google_aut
 import { getMyProfile, getPublicProfile, getProfileById, sendContactRequest, getContactRequests, acceptContactRequest, declineContactRequest, getContacts } from "../controller/contact.controller";
 import { uploadKeys, checkKeys, getMyKeys, getContactPublicKey } from "../controller/crypto.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { authLimiter } from "../app";
+import { authLimiter } from "../middleware/rate-limit.middleware";
 
 const userRouter = Router();
 
