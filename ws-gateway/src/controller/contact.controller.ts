@@ -77,14 +77,16 @@ export const sendContactRequest = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        // Add pending entry to sender's contacts
+        const senderObjId = new mongoose.Types.ObjectId(senderId);
+
+        // Sender's entry: points to target, initiated by sender
         await User.findByIdAndUpdate(senderId, {
-            $push: { contacts: { userId: targetId, status: "pending" } }
+            $push: { contacts: { userId: targetId, status: "pending", initiatedBy: senderObjId } }
         });
 
-        // Add pending entry to target's contacts (so they see the request)
+        // Recipient's entry: points to sender, initiated by sender
         await User.findByIdAndUpdate(targetId, {
-            $push: { contacts: { userId: new mongoose.Types.ObjectId(senderId), status: "pending" } }
+            $push: { contacts: { userId: senderObjId, status: "pending", initiatedBy: senderObjId } }
         });
 
         // Notify target via WS if online
@@ -107,7 +109,7 @@ export const getContactRequests = async (req: Request, res: Response): Promise<v
     try {
         const userId = req.user!.userId;
         const user = await User.findById(userId).populate<{
-            contacts: { userId: { _id: mongoose.Types.ObjectId; name: string; username: string }; status: string }[]
+            contacts: { userId: { _id: mongoose.Types.ObjectId; name: string; username: string }; status: string; initiatedBy: mongoose.Types.ObjectId }[]
         }>("contacts.userId", "name username");
 
         if (!user) {
@@ -115,8 +117,13 @@ export const getContactRequests = async (req: Request, res: Response): Promise<v
             return;
         }
 
+        // Only show pending requests where the caller is the RECIPIENT (not the one who sent)
         const pendingRequests = user.contacts
-            .filter(c => c.status === "pending" && c.userId)
+            .filter(c =>
+                c.status === "pending" &&
+                c.userId &&
+                c.initiatedBy.toString() !== userId  // exclude requests I sent myself
+            )
             .map(c => ({
                 id: (c.userId as any)._id,
                 name: (c.userId as any).name,
@@ -135,6 +142,17 @@ export const acceptContactRequest = async (req: Request, res: Response): Promise
         const { userId: targetId } = req.body;
         const myId = req.user!.userId;
 
+        // Verify caller is the recipient — the entry in MY contacts must have been initiated by targetId
+        const me = await User.findOne({
+            _id: myId,
+            contacts: { $elemMatch: { userId: targetId, status: "pending", initiatedBy: new mongoose.Types.ObjectId(targetId) } }
+        });
+
+        if (!me) {
+            res.status(403).json({ success: false, message: "No incoming request from this user" });
+            return;
+        }
+
         // Update my contact entry for this user to "accepted"
         await User.findOneAndUpdate(
             { _id: myId, "contacts.userId": targetId },
@@ -147,14 +165,14 @@ export const acceptContactRequest = async (req: Request, res: Response): Promise
             { $set: { "contacts.$.status": "accepted" } }
         );
 
-        const me = await User.findById(myId).select("name username");
+        const meUser = await User.findById(myId).select("name username");
 
-        // Notify the other user via WS if online
+        // Notify the sender via WS if online
         const targetClient = clients.get(targetId);
         if (targetClient?.ws.readyState === WebSocket.OPEN) {
             targetClient.ws.send(JSON.stringify({
                 type: "contact_accepted",
-                by: { id: myId, name: me?.name, username: me?.username }
+                by: { id: myId, name: meUser?.name, username: meUser?.username }
             }));
         }
 
@@ -170,6 +188,17 @@ export const declineContactRequest = async (req: Request, res: Response): Promis
         const { userId: targetId } = req.body;
         const myId = req.user!.userId;
 
+        // Verify caller is the recipient — must not be the initiator
+        const me = await User.findOne({
+            _id: myId,
+            contacts: { $elemMatch: { userId: targetId, status: "pending", initiatedBy: new mongoose.Types.ObjectId(targetId) } }
+        });
+
+        if (!me) {
+            res.status(403).json({ success: false, message: "No incoming request from this user" });
+            return;
+        }
+
         // Remove the pending entry from both sides
         await User.findByIdAndUpdate(myId, {
             $pull: { contacts: { userId: new mongoose.Types.ObjectId(targetId) } }
@@ -178,14 +207,14 @@ export const declineContactRequest = async (req: Request, res: Response): Promis
             $pull: { contacts: { userId: new mongoose.Types.ObjectId(myId) } }
         });
 
-        const me = await User.findById(myId).select("name username");
+        const meUser = await User.findById(myId).select("name username");
 
         // Notify the requester via WS if online
         const targetClient = clients.get(targetId);
         if (targetClient?.ws.readyState === WebSocket.OPEN) {
             targetClient.ws.send(JSON.stringify({
                 type: "contact_declined",
-                by: { id: myId, name: me?.name, username: me?.username }
+                by: { id: myId, name: meUser?.name, username: meUser?.username }
             }));
         }
 

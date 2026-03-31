@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IContactEntry {
     userId: mongoose.Types.ObjectId;
     status: "pending" | "accepted" | "rejected";
+    initiatedBy: mongoose.Types.ObjectId; // who sent the request
 }
 
 export interface IUserDocument extends Document {
@@ -21,7 +22,8 @@ export interface IUserDocument extends Document {
 const contactEntrySchema = new Schema<IContactEntry>(
     {
         userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-        status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" }
+        status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" },
+        initiatedBy: { type: Schema.Types.ObjectId, ref: "User", required: true }
     },
     { _id: false }
 );
