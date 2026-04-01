@@ -38,7 +38,7 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
                 await user.save();
             } else {
                 const username = await generateUniqueUsername(name);
-                user = await User.create({ name, email, googleId, username });
+                user = await User.create({ name, email, googleId, username, lastSystemNotifSeenAt: new Date() });
                 console.info(`New user created: ${username} (${email})`);
             }
         }

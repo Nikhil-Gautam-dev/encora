@@ -25,6 +25,14 @@ export interface INotification {
     timestamp: string;
 }
 
+export interface ISystemNotification {
+    id: string;
+    title: string;
+    body: string;
+    notifType: string;
+    createdAt: string;
+}
+
 export interface IMessageBanner {
     fromId: string;
     name: string;
@@ -45,6 +53,9 @@ type WebSocketContextType = {
     notifications: INotification[];
     dismissNotification: (id: string) => void;
     clearAllNotifications: () => void;
+    systemNotifications: ISystemNotification[];
+    unreadSystemNotifCount: number;
+    markSystemNotifsSeen: () => void;
     contactRequests: INotification[];
     refreshContacts: () => void;
     onContactsRefresh: number;
@@ -74,6 +85,8 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
     const [lastSeen, setLastSeen] = useState<Map<string, string>>(new Map());
     const [userTyping, setUserTyping] = useState<IUserTyping>({ userId: "N/A", status: false });
     const [notifications, setNotifications] = useState<INotification[]>(loadStoredNotifications);
+    const [systemNotifications, setSystemNotifications] = useState<ISystemNotification[]>([]);
+    const [systemNotifsSeenAt, setSystemNotifsSeenAt] = useState<Date | null>(null);
     const [onContactsRefresh, setOnContactsRefresh] = useState(0);
     const [messageBanner, setMessageBanner] = useState<IMessageBanner | null>(null);
     const socketRef = useRef<WebSocket | null>(null);
@@ -136,6 +149,16 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
                         timestamp: new Date().toISOString()
                     });
                 });
+            })
+            .catch(() => {});
+    }, []);
+
+    // Load system notifications on startup
+    useEffect(() => {
+        api.get<{ notifications: ISystemNotification[] }>("/system/notifications")
+            .then(res => {
+                setSystemNotifications(res.notifications || []);
+                setSystemNotifsSeenAt(null); // will be set when user opens notification panel
             })
             .catch(() => {});
     }, []);
@@ -323,6 +346,18 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
                             });
                             return;
 
+                        case "system_notification": {
+                            const sn: ISystemNotification = {
+                                id: data.id,
+                                title: data.title,
+                                body: data.body,
+                                notifType: data.notifType,
+                                createdAt: data.createdAt
+                            };
+                            setSystemNotifications(prev => [sn, ...prev]);
+                            return;
+                        }
+
                         default:
                             return;
                     }
@@ -368,6 +403,16 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
         }
     };
 
+    const markSystemNotifsSeen = useCallback(() => {
+        const now = new Date();
+        setSystemNotifsSeenAt(now);
+        api.post("/system/notifications/seen", {}).catch(() => {});
+    }, []);
+
+    const unreadSystemNotifCount = systemNotifications.filter(n =>
+        !systemNotifsSeenAt || new Date(n.createdAt) > systemNotifsSeenAt
+    ).length;
+
     const readMessage = (chats: IChatMessage[]) => {
         setChatMessages(chats);
     };
@@ -387,6 +432,9 @@ export const WebSocketProvider: React.FC<{ userId: string; token: string; childr
             notifications,
             dismissNotification,
             clearAllNotifications,
+            systemNotifications,
+            unreadSystemNotifCount,
+            markSystemNotifsSeen,
             contactRequests,
             refreshContacts,
             onContactsRefresh,

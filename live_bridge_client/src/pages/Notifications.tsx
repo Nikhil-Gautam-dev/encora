@@ -4,7 +4,8 @@ import type { INotification } from "../context/WebSocketContext";
 import { api } from "../services/api";
 import { notify } from "../utils/toast";
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeft, UserPlus, UserCheck, UserX, Bell, X } from "lucide-react";
+import { ArrowLeft, UserPlus, UserCheck, UserX, Bell, X, Megaphone } from "lucide-react";
+import { useEffect } from "react";
 
 function NotifIcon({ type }: { type: INotification["type"] }) {
     if (type === "contact_request") return <UserPlus size={18} className="text-teal-600" />;
@@ -29,7 +30,14 @@ function notifLabel(n: INotification): { title: string; sub: string } {
 
 export default function Notifications() {
     const navigate = useNavigate();
-    const { notifications, dismissNotification, clearAllNotifications, refreshContacts } = useWebSocket();
+    const { notifications, dismissNotification, clearAllNotifications, refreshContacts, systemNotifications, markSystemNotifsSeen } = useWebSocket();
+
+    // Mark system notifs as seen when this page is opened
+    useEffect(() => {
+        if (systemNotifications.length > 0) {
+            markSystemNotifsSeen();
+        }
+    }, []);
 
     const requests = notifications.filter(n => n.type === "contact_request");
     const others = notifications.filter(n => n.type !== "contact_request");
@@ -53,7 +61,7 @@ export default function Notifications() {
         }
     };
 
-    const isEmpty = notifications.length === 0;
+    const isEmpty = notifications.length === 0 && systemNotifications.length === 0;
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
@@ -65,7 +73,7 @@ export default function Notifications() {
                     </button>
                     <h1 className="text-base font-semibold">Notifications</h1>
                 </div>
-                {!isEmpty && (
+                {others.length > 0 && (
                     <button
                         onClick={clearAllNotifications}
                         className="text-xs text-teal-200 hover:text-white transition"
@@ -82,6 +90,29 @@ export default function Notifications() {
                         <p className="text-base font-medium">No notifications</p>
                         <p className="text-sm mt-1">You're all caught up</p>
                     </div>
+                )}
+
+                {/* System Announcements */}
+                {systemNotifications.length > 0 && (
+                    <section>
+                        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-2">From Encora</p>
+                        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden border border-gray-100 dark:border-gray-800">
+                            {systemNotifications.map(n => (
+                                <div key={n.id} className="flex items-start gap-3 px-4 py-3">
+                                    <div className="h-10 w-10 rounded-full bg-teal-50 dark:bg-teal-900/30 flex items-center justify-center shrink-0 mt-0.5">
+                                        <Megaphone size={18} className="text-teal-600 dark:text-teal-400" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{n.title}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{n.body}</p>
+                                        <p className="text-[10px] text-gray-300 dark:text-gray-600 mt-1">
+                                            {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
                 )}
 
                 {/* Contact Requests */}
@@ -160,3 +191,4 @@ export default function Notifications() {
         </div>
     );
 }
+

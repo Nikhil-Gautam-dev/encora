@@ -17,6 +17,7 @@ export interface IUserDocument extends Document {
     encryptedPrivateKey?: string;
     keySalt?: string;
     keyIv?: string;
+    lastSystemNotifSeenAt: Date;
 }
 
 const contactEntrySchema = new Schema<IContactEntry>(
@@ -39,7 +40,8 @@ const userSchema = new Schema<IUserDocument>(
         publicKey: { type: String },
         encryptedPrivateKey: { type: String },
         keySalt: { type: String },
-        keyIv: { type: String }
+        keyIv: { type: String },
+        lastSystemNotifSeenAt: { type: Date, default: Date.now }
     },
     { timestamps: true }
 );

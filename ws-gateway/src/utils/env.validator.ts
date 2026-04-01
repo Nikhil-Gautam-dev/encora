@@ -14,7 +14,9 @@ const REQUIRED_ENVS = [
     "CLIENT_URL",
 
     "JWT_EXPIRES_IN",
-    "JWT_REFRESH_EXPIRES_IN"
+    "JWT_REFRESH_EXPIRES_IN",
+
+    "ADMIN_SECRET"
 ] as const;
 
 

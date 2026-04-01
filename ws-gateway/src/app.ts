@@ -39,9 +39,11 @@ app.use("/health", (_: Request, res: Response) => {
 
 import userRouter from "./routes/user.routes";
 import messageRouter from "./routes/message.routes";
+import systemRouter from "./routes/system_notification.routes";
 
 app.use("/api/user", userRouter);
 app.use("/api/messages", messageRouter);
+app.use("/api/system", systemRouter);
 
 
 app.use((_: Request, res: Response) => {

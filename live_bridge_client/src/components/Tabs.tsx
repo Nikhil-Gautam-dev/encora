@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Bell } from "lucide-react";
 
 export default function Tabs() {
-    const { chatMessages, notifications } = useWebSocket();
+    const { chatMessages, notifications, unreadSystemNotifCount } = useWebSocket();
     const { user, logout } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
     const [showMenu, setShowMenu] = useState(false);
@@ -53,9 +53,9 @@ export default function Tabs() {
                         title="Notifications"
                     >
                         <Bell size={20} strokeWidth={1.8} />
-                        {notifications.length > 0 && (
+                        {notifications.length + unreadSystemNotifCount > 0 && (
                             <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold">
-                                {notifications.length}
+                                {notifications.length + unreadSystemNotifCount}
                             </span>
                         )}
                     </Link>
