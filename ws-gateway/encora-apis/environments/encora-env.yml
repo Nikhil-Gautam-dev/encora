@@ -1,0 +1,6 @@
+name: encora-env
+variables:
+  - name: local_url
+    value: http://localhost:3001/api
+  - name: remote_url
+    value: https://devlog.cat/encora/api

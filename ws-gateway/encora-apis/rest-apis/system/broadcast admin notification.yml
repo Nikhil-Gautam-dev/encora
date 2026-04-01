@@ -5,7 +5,20 @@ info:
 
 http:
   method: POST
-  url: ""
+  url: "{{remote_url}}/system/admin/broadcast"
+  headers:
+    - name: x-admin-secret
+      value: Nikhil
+  body:
+    type: json
+    data: |-
+      {
+        "title": "testing",
+        "body": "check if system notifications working !!",
+        "type": "maintenance"
+      }
+
+      // type can "announcement", "maintenance" and "update"
   auth: inherit
 
 settings:
