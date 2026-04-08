@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import WebSocket from "ws";
 import { SystemNotification } from "../models/system_notification.schema";
 import { User } from "../models/user.schema";
-import { clients } from "../server";
+import { clients } from "../client-registry";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 

@@ -3,7 +3,7 @@ import { ConsumeMessage } from "amqplib";
 import mongoose from "mongoose";
 
 import { IWebSocketMessage, WebSocketMessageType } from "../models/ws_client.model";
-import { clients } from "../server";
+import { clients } from "../client-registry";
 import { channel } from "../services/message_broker.service";
 import { MESSAGE_EXCHANGE } from "../constant";
 import { Message } from "../models/message.schema";

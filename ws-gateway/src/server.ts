@@ -1,11 +1,12 @@
 import { IncomingMessage } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { IClientInfo, IWebSocketMessage } from "./models/ws_client.model";
+import { IWebSocketMessage } from "./models/ws_client.model";
+import { clients } from "./client-registry";
 import { broadcastToContacts, handleLoginMessage, handleSendMessage, handleUserStartTyping, handleUserStopTyping, handleMessageRead } from "./handler/ws_message.handler";
 import { channel } from "./services/message_broker.service";
 import { User } from "./models/user.schema";
 
-export const clients: Map<string, IClientInfo> = new Map();
+export { clients };
 
 export let wss: WebSocketServer;
 

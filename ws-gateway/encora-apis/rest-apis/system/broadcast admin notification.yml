@@ -11,13 +11,12 @@ http:
       value: Nikhil
   body:
     type: json
-    data: |-
-      {
-        "title": "testing",
-        "body": "check if system notifications working !!",
-        "type": "maintenance"
-      }
-
+    data: |2-
+       {
+         "title": "Action required ⚠️",
+         "body": "Please clear your browser cache and cookies, then log in again for the latest updates to take effect. Sorry for the inconvenience!",
+         "type": "maintenance"
+       }
       // type can "announcement", "maintenance" and "update"
   auth: inherit
 

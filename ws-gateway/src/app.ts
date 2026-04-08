@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { apiLimiter } from "./middleware/rate-limit.middleware";
+import morgan from "morgan"
 
 const app = express();
 
@@ -22,7 +23,7 @@ app.use(cors({
 app.use(express.json({ limit: "64kb" }));
 app.use(express.urlencoded({ extended: true, limit: "64kb" }));
 app.use(cookieParser());
-
+app.use(morgan("dev"))
 app.use("/api", apiLimiter);
 
 
