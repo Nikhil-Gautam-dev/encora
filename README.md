@@ -1,140 +1,132 @@
-# Encora
+# 🔒 Encora
 
-A real-time, end-to-end encrypted chat application built as a side project — inspired by WhatsApp. Encora lets you securely message contacts with full E2E encryption, typing indicators, delivery/read receipts, and a clean mobile-first UI.
+<p align="center">
+  <b>A Zero-Trust, End-to-End Encrypted Real-Time Messaging Platform</b>
+</p>
 
----
+<p align="center">
+  <a href="https://encora-ashen.vercel.app/">
+    <img src="https://img.shields.io/badge/🚀_Live_Demo-encora--ashen.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
+  </a>
+</p>
 
-## What it does
-
-- **Google Sign-In** — one-tap login, no passwords
-- **End-to-end encryption** — messages are encrypted in your browser using ECDH + AES-GCM before they leave your device. The server never sees plaintext
-- **Real-time messaging** — powered by WebSockets with typing indicators, online presence, and last seen
-- **Message delivery & read receipts** — single tick (sent), double tick (delivered), blue double tick (read)
-- **Contact system** — add contacts by sharing your profile link (`/u/your-username`)
-- **Cross-chat notifications** — in-app banner when a message arrives from another contact while you're chatting
-- **Dark mode** — system-aware with manual toggle in profile
-- **Mobile-first** — works on any screen size, keyboard-aware layout on mobile
-
----
-
-## How it works
-
-### Architecture
-
-```
-Browser (React)
-    │
-    ├── HTTPS REST  ──►  Express API  ──►  MongoDB
-    │
-    └── WebSocket   ──►  WS Gateway  ──►  RabbitMQ
-                                              │
-                                         Message queue
-                                         (async DB writes)
-```
-
-### End-to-end encryption
-
-1. On first login, a **PIN** is set and an ECDH P-256 key pair is generated in the browser
-2. The private key is encrypted with your PIN (PBKDF2 → AES-GCM) and backed up to the server — the server stores only the encrypted blob
-3. On a new device, enter your PIN to decrypt and restore your key
-4. Every message is encrypted with a shared AES-GCM key derived from ECDH (your private key + recipient's public key) — only you and your contact can decrypt it
-
-### Message flow
-
-```
-Sender                  Server                  Receiver
-  │                       │                        │
-  ├─ encrypt message ──►  │                        │
-  ├─ send via WS ───────► │                        │
-  │                       ├─ ack sender instantly  │
-  │                       ├─ publish to RabbitMQ   │
-  │                       ├─ async write to DB     │
-  │                       ├─ forward via WS ─────► │
-  │  ◄── delivered ───────┤                        │
-  │                       │       ◄── read ────────┤
-  │  ◄── read ────────────┤                        │
-```
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-5.8-blue?style=for-the-badge&logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Node.js-Express_5-green?style=for-the-badge&logo=nodedotjs" alt="Node.js Express 5" />
+  <img src="https://img.shields.io/badge/WebSockets-ws-orange?style=for-the-badge&logo=websocket" alt="WebSockets" />
+  <img src="https://img.shields.io/badge/RabbitMQ-AMQP-ff6600?style=for-the-badge&logo=rabbitmq" alt="RabbitMQ" />
+  <img src="https://img.shields.io/badge/MongoDB-Mongoose-47A248?style=for-the-badge&logo=mongodb" alt="MongoDB" />
+  <img src="https://img.shields.io/badge/Security-E2EE_ECDH_P--256-red?style=for-the-badge&logo=smallstep" alt="E2EE Security" />
+</p>
 
 ---
 
-## Tech stack
+## 🌐 Live Application
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4 |
-| Auth | Google OAuth 2.0, JWT (access + refresh tokens) |
-| Real-time | WebSockets (ws library) |
-| Backend | Node.js, Express 5, TypeScript |
-| Database | MongoDB (Mongoose) |
-| Message queue | RabbitMQ (amqplib) |
-| Encryption | Web Crypto API — ECDH P-256, AES-GCM-256, PBKDF2 |
-| Key storage | IndexedDB (idb-keyval) |
+Explore the live web application: **[https://encora-ashen.vercel.app/](https://encora-ashen.vercel.app/)**
 
 ---
 
-## Running locally
+## 📖 Overview
 
-### Prerequisites
-- Node.js 18+
-- MongoDB instance
-- RabbitMQ instance
-- Google OAuth client ID
+**Encora** is a real-time instant messaging application engineered around a **zero-trust security model**. Inspired by modern messaging platforms like WhatsApp, Encora guarantees complete data privacy: message payloads are encrypted inside the user's browser using native Web Cryptography standards before transmission.
 
-### Backend
+The backend infrastructure acts strictly as a **blind relay** and **encrypted data store**. Unencrypted message payloads and private keys never touch server memory, database records, or application logs.
 
-```bash
-cd ws-gateway
-cp .env.example .env   # fill in your values
-npm install
-npm run dev
+---
+
+## ✨ Key Features
+
+### 🛡️ End-to-End Cryptography (Zero-Trust)
+
+- **Browser-Native Web Crypto API**: Key derivation and payload ciphers generated natively using `window.crypto.subtle`.
+- **ECDH P-256 Key Exchange**: Dynamic Elliptic-Curve Diffie-Hellman (P-256) key pairs for secure shared secret derivation.
+- **AES-256-GCM Payload Cipher**: Symmetric encryption using unique 96-bit Initialization Vectors (IVs) per message frame.
+- **Encrypted Key Vault**: Private keys are encrypted via **PBKDF2** (300,000 iterations, SHA-256) + **AES-GCM** using a user-selected 6-digit PIN and backed up as an encrypted blob.
+- **IndexedDB Key Caching**: Client-side key caching via `idb-keyval` for seamless persistent sessions across browser reloads.
+
+### ⚡ Real-Time High-Performance Engine
+
+- **Non-Blocking Acknowledgment Pipeline**: Instant client socket confirmation (`message_sent_ack`) using pre-generated MongoDB `ObjectId`s — eliminating database bottlenecks for senders.
+- **Decoupled RabbitMQ Message Broker**: Asynchronous message distribution using AMQP Direct Exchange routing messages to user-dedicated queues (`queue.<userId>`).
+- **Zero-Exposure WebSocket Handshake**: WebSocket connections authenticate over post-connection frames, keeping JWT tokens out of URL parameters and access logs.
+- **Heartbeat & Connection Cleanup**: Server-side 30-second ping/pong monitoring automatically cleans up dead socket instances and syncs status.
+
+### 💬 Rich Messaging & Social System
+
+- **Multi-Stage Delivery Receipts**: Real-time status tracking (`sent` ✓, `delivered` ✓✓, `read` blue ✓✓).
+- **Live Typing & Online Presence**: Instant typing indicators, online status synchronization (`user_online`, `user_offline`), and `lastSeen` timestamps.
+- **Dual-Opt-In Contact Network**: Contact request workflow (`pending`, `accepted`, `declined`) via public profile handles (`/u/:username`) protecting users from unsolicited messages.
+- **Cross-Chat Banners**: In-app notification banners when messages arrive from background conversations.
+
+### 🎨 Mobile-First UI & Design
+
+- **Responsive Layout**: Designed for mobile and desktop screens with smooth tab navigation and soft-keyboard-aware views.
+- **System-Aware Dark Mode**: Custom CSS tokens with automatic system theme sync and manual toggle.
+- **Google OAuth 2.0 Auth**: One-tap Google login with dual-token security (Access Token + HTTP-only Refresh Cookie).
+
+---
+
+## 📐 System Architecture
+
 ```
-
-**Required env vars:**
-```
-PORT=3001
-MONGO_URI=mongodb://...
-JWT_SECRET=...
-JWT_REFRESH_SECRET=...
-GOOGLE_CLIENT_ID=...
-RABBITMQ_URL=amqp://...
-CLIENT_URL=http://localhost:5173
-NODE_ENV=development
-```
-
-### Frontend
-
-```bash
-cd live_bridge_client
-cp .env.example .env
-npm install
-npm run dev
-```
-
-**Required env vars:**
-```
-VITE_API_URL=http://localhost:3001/api
-VITE_GOOGLE_CLIENT_ID=...
+                               ┌───────────────────────────────────────────────┐
+                               │               Browser (React 19)              │
+                               │  - Web Crypto API (ECDH P-256 / AES-GCM-256)  │
+                               │  - Local Key Storage (IndexedDB / idb-keyval) │
+                               └───────┬───────────────────────────────┬───────┘
+                                       │                               │
+                              HTTPS REST API                     WebSocket (ws)
+                         (Auth, Contacts, Keys)                 (Real-time Frame Stream)
+                                       │                               │
+                                       ▼                               ▼
+                               ┌───────────────┐               ┌───────────────┐
+                               │  Express 5    │               │  WS Gateway   │
+                               │  REST Service │               │  Registry     │
+                               └───────┬────────┘               └───────┬───────┘
+                                       │                               │
+                                       │                       AMQP Direct Exchange
+                                       │                               │
+                                       ▼                               ▼
+                               ┌───────────────┐               ┌───────────────┐
+                               │ MongoDB       │◄──────────────┤ RabbitMQ      │
+                               │ Database      │  Async Write  │ Message Queue │
+                               └───────────────┘  (Non-block)  └───────────────┘
 ```
 
 ---
 
-## Deployment
+## 🔒 Security & Cryptographic Model
 
-### Frontend — Vercel
+1. **Key Generation**: Upon first sign-in, an ECDH P-256 key pair is generated in the browser.
+2. **Key Protection**: The private key is encrypted locally using an AES-256 key derived from the user's 6-digit PIN via PBKDF2 (300k iterations, SHA-256) and backed up to the server as an encrypted ciphertext.
+3. **Session Persistence**: The unencrypted private key is cached securely in browser IndexedDB (`idb-keyval`) for seamless session recovery.
+4. **Message Encryption**: Every message is encrypted using a unique shared AES-256-GCM key derived from the sender's private key and recipient's public key.
 
-1. Push to GitHub, import in [vercel.com](https://vercel.com)
-2. Set `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` in Vercel environment variables
-3. The `vercel.json` at the root of `live_bridge_client/` handles SPA routing automatically
+---
 
-### Backend — any Node host (VPS, Railway, Render)
+## 🛠️ Tech Stack
 
-Using PM2 on a VPS:
+| Layer                  | Technology                                                      |
+| ---------------------- | --------------------------------------------------------------- |
+| **Frontend**           | React 19, TypeScript, Vite, Tailwind CSS v4                     |
+| **Authentication**     | Google OAuth 2.0, JWT (Access Token + HTTP-Only Refresh Cookie) |
+| **Real-Time**          | WebSockets (`ws` library)                                       |
+| **Backend API**        | Node.js, Express 5, TypeScript                                  |
+| **Database**           | MongoDB (Mongoose)                                              |
+| **Message Queue**      | RabbitMQ (`amqplib`)                                            |
+| **Cryptography**       | Web Crypto API — ECDH P-256, AES-GCM-256, PBKDF2                |
+| **Client Key Storage** | IndexedDB (`idb-keyval`)                                        |
 
-```bash
-cd ws-gateway
-npm run build
-pm2 start ecosystem.config.js
-pm2 save && pm2 startup
-```
+---
 
-Fill in real values in `ecosystem.config.js` before starting. Do not commit this file — it contains secrets.
+## 📄 License
+
+This project is licensed under the **ISC License**.
+
+---
+
+<p align="center">
+  Crafted with ❤️ by <a href="https://github.com/Nikhil-Gautam-dev">Nikhil Gautam</a>
+</p>
